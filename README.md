@@ -7,21 +7,30 @@
 | Showcase | 说明 |
 |----------|------|
 | [elwisp](elwisp/) | 外部事件监听——一条 curl 把任何外部信号接入 ElBot |
-| [frontend](frontend/) | 前端能力展示——前后端分离，agent 可自由构建界面 |
+| [frontend](frontend/) | 可运行的 Web 前端，包含完整 HTML、CSS、JavaScript 源码 |
+| [frontend-concepts](frontend-concepts/) | Web 前端概念稿，展示不同的界面风格 |
 | [hooks](hooks/) | Hook 插件示例——C / C++ / TypeScript 一次性脚本与 Python 持久 Hook |
 
 更多 showcase 持续添加中。
 
 ## 前端预览
 
-ElBot 前后端分离，前端完全可定制——想写什么好看的界面都行。
+### 可运行的 Web 前端
 
-这里的截图展示了不同的前端形态。除 TUI 外，其余是概念性 HTML mockup，不代表最终 UI，仅用于展示 agent 可以自由构建前端的能力。
+下面是实际连接 ElBot 的运行截图，[完整源码与安装说明](frontend/) 已包含在本仓库中。
+
+![ElBot Web 前端实际运行截图](assets/frontend/web-chat.png)
+
+将本仓库的 `frontend/` 目录复制到 ElBot 主配置文件所在目录，启用 CLI 远程服务并重启后，即可通过其 HTTP 地址打开。页面与远程 CLI 共用监听端口，无需额外启动 Web 服务器。HTML、CSS 和 JavaScript 均由用户管理，可直接修改或替换。
+
+### 概念稿与 TUI
+
+前两张为 Web 前端概念稿，仅展示界面风格；第三张为 TUI 终端界面。全部四张 Web 概念稿见 [frontend-concepts](frontend-concepts/)。
 
 <p align="center">
-  <img src="frontend/assets/frontend_1.png" width="280" />
-  <img src="frontend/assets/frontend_2.jpg" width="280" />
-  <img src="frontend/assets/tui.png" width="280" />
+  <img src="frontend-concepts/assets/frontend_1.png" width="280" alt="Web 前端概念稿一" />
+  <img src="frontend-concepts/assets/frontend_2.jpg" width="280" alt="Web 前端概念稿二" />
+  <img src="assets/frontend/tui.png" width="280" alt="ElBot TUI 终端界面" />
 </p>
 
 ---
@@ -35,21 +44,30 @@ A collection of showcases for the [ElBot](https://github.com/Elflare/elbot) ecos
 | Showcase | Description |
 |----------|-------------|
 | [elwisp](elwisp/) | External event listener — one curl to feed any signal into ElBot |
-| [frontend](frontend/) | Frontend capabilities — front-back separation, agent-built UI |
+| [frontend](frontend/) | Runnable web frontend with complete HTML, CSS, and JavaScript source |
+| [frontend-concepts](frontend-concepts/) | Web frontend concepts exploring different interface styles |
 | [hooks](hooks/) | Hook plugin examples — C / C++ / TypeScript one-shot scripts and a Python stateful Hook |
 
 More showcases coming soon.
 
 ## Frontend Preview
 
-ElBot separates front-end from back-end — the UI is fully customizable. Write whatever interface you want.
+### Runnable Web Frontend
 
-The screenshots below showcase different front-end styles. Except for the TUI, these are conceptual HTML mockups, not final UI — they demonstrate the freedom an agent has in crafting front-ends.
+This is a screenshot of the frontend connected to ElBot. [Complete source and setup instructions](frontend/) are included in this repository.
+
+![ElBot web frontend connected to ElBot](assets/frontend/web-chat.png)
+
+Copy this repository's `frontend/` directory alongside ElBot's main configuration file, enable the remote CLI server, and restart ElBot. Open the server's HTTP address to use the page. The page shares the remote CLI server's listening port, so no additional web server is needed. Users manage the HTML, CSS, and JavaScript files and can edit or replace them directly.
+
+### Concepts and TUI
+
+The first two images are web frontend concepts illustrating interface styles; the third is the TUI. All four web concepts are preserved in [frontend-concepts](frontend-concepts/).
 
 <p align="center">
-  <img src="frontend/assets/frontend_1.png" width="280" />
-  <img src="frontend/assets/frontend_2.jpg" width="280" />
-  <img src="frontend/assets/tui.png" width="280" />
+  <img src="frontend-concepts/assets/frontend_1.png" width="280" alt="Web frontend concept one" />
+  <img src="frontend-concepts/assets/frontend_2.jpg" width="280" alt="Web frontend concept two" />
+  <img src="assets/frontend/tui.png" width="280" alt="ElBot terminal interface" />
 </p>
 
 ## License
