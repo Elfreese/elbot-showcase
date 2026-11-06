@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#10141b">
+  <meta name="description" content="让ElBot感知一切">
+  <title>ElBot</title>
+  <link rel="icon" href="assets/elbot-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+  <script defer src="vendor/marked.umd.js"></script>
+  <script defer src="vendor/purify.min.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10zM13 3v7h7M8 15h8M8 18h5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
+  </svg>
+
+  <header class="app-header">
+    <a class="brand" href="./" aria-label="ElBot 首页">
+      <img class="brand-symbol" src="assets/elbot-logo.svg" alt="">
+      <img class="brand-wordmark" src="assets/elbot-wordmark.svg" alt="ElBot">
+      <span class="brand-divider"></span><span class="brand-caption">让ElBot感知一切</span>
+    </a>
+    <div class="header-actions">
+      <button id="connection-button" class="connection-button" type="button" aria-label="连接设置"><span id="connection-dot" class="status-dot"></span><span id="connection-label">未连接</span></button>
+      <button id="notice-toggle" class="icon-button" type="button" aria-label="显示或隐藏通知" aria-expanded="true" aria-controls="notice-panel"><svg><use href="#i-panel"/></svg><span id="notice-unread" class="unread-dot" hidden></span></button>
+    </div>
+  </header>
+
+  <div id="workspace" class="workspace">
+    <main class="chat-panel">
+      <div id="chat-scroll" class="chat-scroll">
+        <div id="welcome" class="welcome">
+          <div class="welcome-emblem"><img src="assets/elbot-logo.svg" alt="ElBot"></div>
+          <h1>让<span>ElBot</span>感知一切</h1>
+          <div class="welcome-footnote"><span></span> 对话 · 工具 · 文件 <span></span></div>
+        </div>
+        <div id="messages" class="messages" role="log" aria-label="对话" aria-live="polite" aria-relevant="additions"></div>
+      </div>
+      <button id="scroll-bottom" class="scroll-bottom" type="button" hidden>回到最新消息 ↓</button>
+
+      <div class="composer-area">
+        <div class="runtime-bar" role="status" aria-live="polite">
+          <div class="runtime-main"><span id="phase-dot" class="status-dot"></span><span id="phase-label">等待连接</span><span id="tool-label" class="tool-label"></span></div>
+          <div class="runtime-metrics"><span id="elapsed"></span><span id="usage"></span></div>
+        </div>
+        <form id="composer-form" class="composer">
+          <div id="draft-files" class="draft-files" aria-label="待发送附件" hidden></div>
+          <label class="visually-hidden" for="message-input">消息</label>
+          <textarea id="message-input" rows="2" placeholder="发消息，或用 / 命令、@ 工具、# 附件" autocomplete="off" spellcheck="false" disabled></textarea>
+          <div id="completion-menu" class="completion-menu" role="listbox" aria-label="补全候选" hidden></div>
+          <div class="composer-toolbar">
+            <div class="composer-tools">
+              <button id="attach-button" class="icon-button" type="button" aria-label="添加附件" disabled><svg><use href="#i-plus"/></svg></button>
+              <div class="model-control">
+                <button id="model-button" class="model-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="model-popover" disabled><span class="model-orbit"></span><span id="model-label">选择模型</span><svg><use href="#i-chevron"/></svg></button>
+                <section id="model-popover" class="model-popover" role="dialog" aria-label="选择模型" hidden>
+                  <div class="popover-heading"><span>选择模型</span><span class="muted">当前模式</span></div>
+                  <label class="model-search"><svg><use href="#i-search"/></svg><input id="model-search" type="search" placeholder="搜索模型或提供方" autocomplete="off" aria-label="搜索模型"></label>
+                  <div id="model-list" class="model-list" aria-live="polite"></div>
+                  <p id="model-pending" class="popover-footnote">沿用当前模式的模型设置</p>
+                </section>
+              </div>
+            </div>
+            <button id="send-button" class="send-button" type="submit" aria-label="发送消息" disabled><svg><use href="#i-arrow"/></svg></button>
+          </div>
+        </form>
+        <input id="file-input" type="file" multiple hidden>
+        <div class="composer-caption"><span id="client-label">ElBot</span><span id="draft-status">让ElBot感知一切</span></div>
+      </div>
+      <div id="drop-overlay" class="drop-overlay" hidden><div><svg><use href="#i-plus"/></svg><strong>把文件放在这里</strong><span>添加到当前消息</span></div></div>
+    </main>
+
+    <aside id="notice-panel" class="notice-panel" aria-label="通知">
+      <div class="notice-heading"><div><span class="eyebrow">ACTIVITY</span><h2>通知 <span id="notice-count">0</span></h2></div><button id="clear-notices" class="icon-button" type="button" aria-label="清空通知"><svg><use href="#i-trash"/></svg></button></div>
+      <div id="notice-scroll" class="notice-scroll"><div id="notice-empty" class="notice-empty"><span class="quiet-orbit"></span><p>一切安静，随时开始。</p><span>命令结果和运行提示会出现在这里</span></div><div id="notices" role="log" aria-live="polite" aria-label="运行通知"></div></div>
+      <div class="notice-footer"><span class="status-dot"></span> 命令结果与运行提示</div>
+    </aside>
+  </div>
+  <div id="notice-backdrop" class="notice-backdrop" hidden></div>
+
+  <dialog id="login-dialog" class="login-dialog" aria-labelledby="login-title">
+    <button id="login-close" class="icon-button dialog-close" type="button" aria-label="关闭连接设置"><svg><use href="#i-close"/></svg></button>
+    <div class="login-brand"><img src="assets/elbot-logo.svg" alt=""><img src="assets/elbot-wordmark.svg" alt="ElBot"></div>
+    <h2 id="login-title">接上你的 ElBot。</h2>
+    <p class="login-description">登录后，继续这场对话。</p>
+    <form id="login-form">
+      <label for="client-id">Client ID</label><input id="client-id" name="client_id" autocomplete="off" placeholder="你的客户端标识" required>
+      <label for="login-token">Token</label><input id="login-token" name="token" type="password" autocomplete="off" placeholder="输入访问凭据" required>
+      <p id="login-error" class="login-error" role="alert" hidden></p>
+      <button id="login-submit" class="primary-button" type="submit">连接 ElBot <span>↗</span></button>
+    </form>
+    <button id="disconnect-button" class="text-button" type="button" hidden>断开连接并退出</button>
+    <p class="login-footnote">凭据仅保留在当前页面，关闭或刷新后清除。</p>
+  </dialog>
+  <noscript><div class="noscript">请启用 JavaScript 以连接 ElBot。</div></noscript>
+</body>
+</html>
