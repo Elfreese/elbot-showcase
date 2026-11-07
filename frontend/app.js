@@ -544,8 +544,8 @@ function start() {
       case "tools": return result.confirmation ? data.prompt : data.operation ? `${md(data.operation)}：${md(data.name)}` : table(["名称", "说明", "来源", "风险", "标签"], items.map(row => [row.name, row.description, row.source, row.risk, (row.tags || []).join("、")]));
       case "rollback": return fields([["撤销编号", data.id], ["文件", data.path], ["结果", data.deleted ? "已删除新建文件" : "已恢复文件"], ["版本", data.revision]]);
       case "rollbacks": return table(["编号", "文件", "新建文件", "编辑时间"], items.map(row => [row.id, row.path, row.created ? "是" : "否", stamp(row.edited_at)]));
-      case "logs": return `### ${md(data.title)}\n\n${items.map(row => `**${md(stamp(row.time))} · ${md(row.level)} · ${md(row.module)} · ${md(row.event_name)}**\n\n${fence(row.raw || row.content)}`).join("\n\n") || "暂无日志。"}${data.damaged_count ? `\n\n损坏记录：${data.damaged_count}${data.damaged_lines?.length ? `\n\n${fence(data.damaged_lines.join("\n"))}` : ""}` : ""}`;
-      case "usage": return `### 用量统计 · ${md(data.range)}\n\n${table([data.group_by || "分组", "调用", "输入 token", "输出 token", "总 token", "缓存 token", "耗时 ms"], [...items, data.total].map(usageRow))}${data.range_truncated ? "\n\n查询范围超过可用记录，已使用实际范围。" : ""}${data.damaged_count ? `\n\n损坏记录：${data.damaged_count}` : ""}`;
+      case "logs": return `### ${md(data.title)}\n\n${items.map(row => `**${md(stamp(row.time))} · ${md(row.level)} · ${md(row.module)} · ${md(row.event_name)}**\n\n${fence(row.raw || row.content)}`).join("\n\n") || "暂无日志。"}${data.damaged_count ? `\n\n损坏记录：${data.damaged_count}${data.damaged_lines?.length ? `\n\n${fence(data.damaged_lines.join("\n"))}` : ""}${data.damaged_count > (data.damaged_lines?.length || 0) ? `\n\n省略：${data.damaged_count - (data.damaged_lines?.length || 0)}` : ""}` : ""}`;
+      case "usage": return (items.length || data.total.calls ? `### 用量统计 · ${md(data.range)}\n\n${table([data.group_by || "分组", "调用", "输入 token", "输出 token", "总 token", "缓存 token", "耗时 ms"], [...items, data.total].map(usageRow))}` : "-") + (data.range_truncated ? "\n\n查询范围超过可用记录，已使用实际范围。" : "") + (data.damaged_count ? `\n\n损坏记录：${data.damaged_count}` : "");
       case "doctor": return `配置：${md(data.config_path)}\n\n${items.length ? table(["级别", "主题", "配置项", "问题"], items.map(row => [row.level, row.topic, (row.field || []).join("."), row.message])) : "未发现配置问题。"}`;
       case "hooks": return (data.operation ? `操作：${md(data.operation)} ${md(data.target)}\n\n` : "") + table(["ID", "名称", "注册点", "优先级", "模式", "状态", "执行中", "等待", "说明"], items.map(row => [row.id, row.name, row.point, row.priority, row.mode, row.status, row.active, row.waiting, row.detail || row.description])) + (data.notices?.length ? `\n\n${data.notices.map(md).join("\n\n")}` : "");
       case "compact": return `已压缩并切换到会话：${md(data.title || "未命名会话")}`;
@@ -1041,7 +1041,7 @@ function start() {
     updateControls();
   }
 
-  async function refreshSessions(command = `/sessions 1 ${state.sessionQuery}`.trimEnd()) {
+  async function refreshSessions(command = state.sessionQuery ? `/sessions -k ${state.sessionQuery}` : "/sessions") {
     if (!state.ready) return;
     const version = ++state.listVersion;
     state.listing = true;
