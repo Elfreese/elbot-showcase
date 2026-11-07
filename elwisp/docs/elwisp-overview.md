@@ -30,17 +30,17 @@ ElBot   ─执行者─▶  record / direct 通知 / llm 分析
 - 监听外部信息来源
 - 构造符合 Elvena v3 的事件
 - 上报到 Elnis
-- 声明自己可以使用的工具（tools 字段）
+- 通过 `tools` 声明自己提供的外部工具，通过 `tool_list_names` 请求 ElBot 内部工具或 Skill
 - 管理自己的状态和重试
 
 ### Elnis 负责
 
 - 鉴权（Bearer token）
 - 协议版本校验
-- 事件去重（source + id）
+- 事件去重（`elwisp.name + source + id`）
 - 根据 mode 分发：
   - record → 只记录
-  - direct → 通知 targets
+  - direct → 执行原生平台 `calls`，按片段或正文通知 targets
   - llm → 启动后台 LLM Session
 - 工具可用性裁决
 
@@ -61,6 +61,8 @@ ElBot   ─执行者─▶  record / direct 通知 / llm 分析
 | 脚本运行结果      | cron/脚本 stdout | direct |
 | 游戏服务器状态    | 定时查询 API    | direct |
 | 传感器告警        | HTTP/串口      | direct |
+
+当前字段和媒体边界见 [Elvena v3 协议](elvena-v3.md)。媒体由宿主 Media Center 归档，Elwisp 不取得宿主媒体导出路径或管理 RPC。
 
 ## 开发 Elwisp 的步骤
 

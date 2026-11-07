@@ -10,7 +10,7 @@
 
 ```bash
 # 设置环境变量
-export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v2/events
+export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v3/events
 export ELNIS_TOKEN=your-token-here
 
 # 发送事件
@@ -28,7 +28,7 @@ export ELNIS_TOKEN=your-token-here
 - `title` — 通知标题
 - `content` — 通知正文
 - `targets` — 推送到哪些平台
-- `source` / `id` — 去重标识（同 source+id 只投递一次）
+- `elwisp.name` / `source` / `id` — 去重标识，同一外部事件使用稳定 ID
 
 ---
 
@@ -44,7 +44,7 @@ Verify that the Elwisp → Elnis pipeline is working. Send one direct event, and
 
 ```bash
 # Set environment variables
-export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v2/events
+export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v3/events
 export ELNIS_TOKEN=your-token-here
 
 # Send the event
@@ -62,4 +62,4 @@ Edit the payload in `send_event.sh`:
 - `title` — notification title
 - `content` — notification body
 - `targets` — platforms to push to
-- `source` / `id` — deduplication key; events with the same source+id are delivered only once
+- `elwisp.name` / `source` / `id` — deduplication key; use a stable ID for the same external event

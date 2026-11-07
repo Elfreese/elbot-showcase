@@ -10,7 +10,7 @@
 
 ```bash
 # 设置环境变量
-export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v2/events
+export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v3/events
 export ELNIS_TOKEN=your-token-here
 
 # 发送事件
@@ -19,7 +19,7 @@ export ELNIS_TOKEN=your-token-here
 
 ## 效果
 
-如果链路正常，后台 LLM 会分析事件并返回结果到 targets 指定平台。
+Elnis 接收后快速返回排队结果，后台 LLM 随后分析事件。仅在结构化结果的 `need_report=true` 时向 targets 报告；`false` 时不发送报告。
 
 ## content 说明
 
@@ -53,7 +53,7 @@ Verify the Elwisp → Elnis → background LLM Session pipeline. Send one llm ev
 
 ```bash
 # Set environment variables
-export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v2/events
+export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v3/events
 export ELNIS_TOKEN=your-token-here
 
 # Send the event
@@ -62,7 +62,7 @@ export ELNIS_TOKEN=your-token-here
 
 ## Result
 
-If the pipeline is working, the background LLM will analyze the event and return the result to the platform specified in targets.
+Elnis returns the queueing result promptly and the LLM analyzes the event in the background. It reports to targets only when the structured result has `need_report=true`; `false` produces no report.
 
 ## content notes
 

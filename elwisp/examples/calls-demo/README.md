@@ -1,35 +1,32 @@
 # calls-demo
 
-演示 Elvena v3 `calls` 字段：在 direct 模式下执行平台动作调用。
-
-## 用途
-
-展示如何通过 `calls` 让 Elwisp 直接执行平台动作（撤回消息、禁言、退群），无需经过 LLM。
+演示 Elvena v3 的 `calls`：在 direct 模式下通过平台原生 API 执行动作，无需 LLM。
 
 ## 使用
 
-```bash
-# 设置环境变量
-export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v2/events
-export ELNIS_TOKEN=your-token-here
+先把 `send_event.sh` 中 `params` 的示例会话、消息、用户和群 ID 改成实际值，并确保对应平台已接入 ElBot。
 
-# 发送事件
+```bash
+export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v3/events
+export ELNIS_TOKEN=your-token-here
 ./send_event.sh
 ```
 
-## 效果
+脚本需要 Bash、curl 和 Python 3，与其他示例一致。
 
-Elnis 收到事件后，会依次执行 `calls` 中的动作调用，然后将 `content` 作为通知文本发送到 `targets`。
+## 调用内容
 
-## calls 说明
+| 平台 | 原生 API | 参数与作用 |
+| --- | --- | --- |
+| Telegram | `deleteMessage` | `chat_id`、`message_id`：删除消息。 |
+| QQ OneBot | `set_group_ban` | `group_id`、`user_id`、`duration`：禁言指定成员，duration 单位为秒。 |
+| QQ OneBot | `set_group_leave` | `group_id`：退出群聊。 |
 
-本示例演示三种 capability：
+每项只使用 `platform`、`api` 和 `params`。会话与对象标识放进原生 API 的 `params`；省略 `platform` 时由首个解析目标决定平台。
 
-1. `message.recall` — 撤回指定消息
-2. `member.mute` — 禁言群成员
-3. `chat.leave` — 退出群聊
+Elnis 按顺序执行调用，遇到失败便结束，不继续后续调用或通知。全部调用完成后，将正文发送到 `targets`。如只需执行 API，可省略 `content` 和 `segments`，此时不发送额外消息。
 
-`kind` 可省略：写 `name` 自动推断为 capability，写 `api` 自动推断为 raw。
+`targets` 仍是必填的非空数组。CLI 通知需要前台 `elbot run` 或已启用 CLI 远程服务的 service；`elbot client` 需连接对应服务端。
 
 完整字段说明见 [Elvena v3 协议](../../docs/elvena-v3.md#calls平台动作调用)。
 
@@ -37,35 +34,32 @@ Elnis 收到事件后，会依次执行 `calls` 中的动作调用，然后将 `
 
 # calls-demo
 
-Demonstrates the Elvena v3 `calls` field: executing platform actions in direct mode.
-
-## Purpose
-
-Shows how to use `calls` to let Elwisp directly execute platform actions (recall messages, mute members, leave groups) without going through LLM.
+Demonstrates Elvena v3 `calls`: invoke native platform APIs in direct mode without an LLM.
 
 ## Usage
 
-```bash
-# Set environment variables
-export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v2/events
-export ELNIS_TOKEN=your-token-here
+Replace the example chat, message, user, and group IDs in `send_event.sh` with actual values, and connect the corresponding platforms to ElBot.
 
-# Send the event
+```bash
+export ELNIS_ENDPOINT=http://127.0.0.1:32170/elvena/v3/events
+export ELNIS_TOKEN=your-token-here
 ./send_event.sh
 ```
 
-## Result
+The script uses Bash, curl, and Python 3, like the other examples.
 
-Elnis receives the event, executes the actions in `calls` sequentially, then sends `content` as notification text to `targets`.
+## Calls
 
-## calls notes
+| Platform | Native API | Parameters and effect |
+| --- | --- | --- |
+| Telegram | `deleteMessage` | `chat_id`, `message_id`: delete a message. |
+| QQ OneBot | `set_group_ban` | `group_id`, `user_id`, `duration`: mute a member; duration is in seconds. |
+| QQ OneBot | `set_group_leave` | `group_id`: leave a group. |
 
-This example demonstrates three capabilities:
+Each call uses only `platform`, `api`, and `params`. Put conversation and object IDs directly in the native API parameters. If `platform` is omitted, Elnis uses the first resolved target's platform.
 
-1. `message.recall` — Recall a specified message
-2. `member.mute` — Mute a group member
-3. `chat.leave` — Leave a group chat
+Elnis executes calls in order. A failed call stops subsequent calls and notification delivery. After all calls succeed, the body is sent to `targets`. For API-only execution, omit both `content` and `segments`; no extra message is sent.
 
-`kind` can be omitted: writing `name` infers capability, writing `api` infers raw.
+`targets` remains a required, nonempty array. CLI notifications require foreground `elbot run` or a service with the remote CLI server enabled; `elbot client` must connect to that server.
 
-Full field reference: [Elvena v3 Protocol](../../docs/elvena-v3.md#calls平台动作调用).
+Full reference: [Elvena v3 Protocol](../../docs/elvena-v3.md#calls平台动作调用).

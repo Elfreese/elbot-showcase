@@ -3,11 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#10141b">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f7fa">
   <meta name="description" content="让ElBot感知一切">
   <title>ElBot</title>
   <link rel="icon" href="assets/elbot-logo.svg" type="image/svg+xml">
+  <script>
+    {
+      let preference = "";
+      try { preference = localStorage.getItem("elbot.theme") || ""; } catch {}
+      if (preference !== "light" && preference !== "dark") preference = "";
+      document.documentElement.dataset.themePreference = preference;
+      document.documentElement.dataset.theme = preference || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    }
+  </script>
   <link rel="stylesheet" href="app.css">
   <script defer src="vendor/marked.umd.js"></script>
   <script defer src="vendor/purify.min.js"></script>
@@ -15,6 +24,15 @@
 </head>
 <body>
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <linearGradient id="elbot-wordmark-ink" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color: var(--wordmark-start)"/>
+        <stop offset="100%" style="stop-color: var(--wordmark-end)"/>
+      </linearGradient>
+    </defs>
+    <symbol id="elbot-wordmark" viewBox="110 30 204 76">
+      <text x="210" y="100" text-anchor="middle" font-family="Noto Sans Display, Segoe UI, Arial, sans-serif" font-size="86" font-weight="750" letter-spacing="-2" fill="url(#elbot-wordmark-ink)" stroke="none">ElBot</text>
+    </symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
@@ -25,37 +43,53 @@
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 0 1-10-10A9 9 0 1 0 21 13Z"/></symbol>
   </svg>
 
   <header class="app-header">
+    <button id="session-toggle" class="icon-button" type="button" aria-label="打开会话列表" aria-expanded="false" aria-controls="session-panel"><svg><use href="#i-menu"/></svg></button>
     <a class="brand" href="./" aria-label="ElBot 首页">
       <img class="brand-symbol" src="assets/elbot-logo.svg" alt="">
-      <img class="brand-wordmark" src="assets/elbot-wordmark.svg" alt="ElBot">
+      <svg class="brand-wordmark" role="img" aria-label="ElBot"><use href="#elbot-wordmark"/></svg>
       <span class="brand-divider"></span><span class="brand-caption">让ElBot感知一切</span>
     </a>
     <div class="header-actions">
       <button id="connection-button" class="connection-button" type="button" aria-label="连接设置"><span id="connection-dot" class="status-dot"></span><span id="connection-label">未连接</span></button>
-      <button id="notice-toggle" class="icon-button" type="button" aria-label="显示或隐藏通知" aria-expanded="true" aria-controls="notice-panel"><svg><use href="#i-panel"/></svg><span id="notice-unread" class="unread-dot" hidden></span></button>
+      <button id="theme-toggle" class="icon-button" type="button" aria-label="切换明暗主题"><svg><use href="#i-moon"/></svg></button>
+      <button id="notice-toggle" class="icon-button" type="button" aria-label="显示或隐藏通知" aria-expanded="false" aria-controls="notice-panel"><svg><use href="#i-bell"/></svg><span id="notice-unread" class="unread-dot" hidden></span></button>
     </div>
   </header>
 
-  <div id="workspace" class="workspace">
+  <div id="workspace" class="workspace notices-hidden">
+    <aside id="session-panel" class="session-panel" aria-label="会话列表">
+      <button id="new-session" class="new-session" type="button" disabled><svg><use href="#i-plus"/></svg>新对话</button>
+      <div class="session-heading"><h2>会话</h2><button id="session-search-toggle" class="icon-button" type="button" aria-label="搜索会话" aria-expanded="false" aria-controls="session-search-form"><svg><use href="#i-search"/></svg></button></div>
+      <form id="session-search-form" class="session-search-form" hidden>
+        <label class="visually-hidden" for="session-search">搜索会话</label>
+        <input id="session-search" type="search" placeholder="搜索会话，回车确认" autocomplete="off">
+        <button class="icon-button" type="submit" aria-label="提交搜索"><svg><use href="#i-search"/></svg></button>
+      </form>
+      <div id="session-list" class="session-list" aria-live="polite"></div>
+      <p id="session-feedback" class="session-feedback" role="status">连接后查看会话</p>
+      <div class="session-pagination"><button id="session-prev" type="button" disabled>上一页</button><span id="session-page">1</span><button id="session-next" type="button" disabled>下一页</button></div>
+    </aside>
     <main class="chat-panel">
+      <div id="conversation-heading" class="conversation-heading">新对话</div>
       <div id="chat-scroll" class="chat-scroll">
         <div id="welcome" class="welcome">
           <div class="welcome-emblem"><img src="assets/elbot-logo.svg" alt="ElBot"></div>
           <h1>让<span>ElBot</span>感知一切</h1>
-          <div class="welcome-footnote"><span></span> 对话 · 工具 · 文件 <span></span></div>
+          <div class="welcome-footnote"><span></span> token 节约 · 事件驱动 · 丰富扩展 <span></span></div>
         </div>
+        <button id="history-more" class="history-more" type="button" hidden>加载更早消息</button>
         <div id="messages" class="messages" role="log" aria-label="对话" aria-live="polite" aria-relevant="additions"></div>
       </div>
       <button id="scroll-bottom" class="scroll-bottom" type="button" hidden>回到最新消息 ↓</button>
 
       <div class="composer-area">
-        <div class="runtime-bar" role="status" aria-live="polite">
-          <div class="runtime-main"><span id="phase-dot" class="status-dot"></span><span id="phase-label">等待连接</span><span id="tool-label" class="tool-label"></span></div>
-          <div class="runtime-metrics"><span id="elapsed"></span><span id="usage"></span></div>
-        </div>
         <form id="composer-form" class="composer">
           <div id="draft-files" class="draft-files" aria-label="待发送附件" hidden></div>
           <label class="visually-hidden" for="message-input">消息</label>
@@ -65,35 +99,38 @@
             <div class="composer-tools">
               <button id="attach-button" class="icon-button" type="button" aria-label="添加附件" disabled><svg><use href="#i-plus"/></svg></button>
               <div class="model-control">
-                <button id="model-button" class="model-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="model-popover" disabled><span class="model-orbit"></span><span id="model-label">选择模型</span><svg><use href="#i-chevron"/></svg></button>
+                <button id="model-button" class="model-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="model-popover" disabled><span class="model-orbit"></span><span id="model-label">读取模型…</span><svg><use href="#i-chevron"/></svg></button>
                 <section id="model-popover" class="model-popover" role="dialog" aria-label="选择模型" hidden>
-                  <div class="popover-heading"><span>选择模型</span><span class="muted">当前模式</span></div>
+                  <div class="popover-heading"><span>选择模型</span></div>
                   <label class="model-search"><svg><use href="#i-search"/></svg><input id="model-search" type="search" placeholder="搜索模型或提供方" autocomplete="off" aria-label="搜索模型"></label>
                   <div id="model-list" class="model-list" aria-live="polite"></div>
                   <p id="model-pending" class="popover-footnote">沿用当前模式的模型设置</p>
                 </section>
               </div>
             </div>
+            <div class="runtime-bar" role="status" aria-live="polite">
+              <div class="runtime-main"><span id="phase-dot" class="status-dot"></span><span id="phase-label">等待连接</span><span id="tool-label" class="tool-label"></span></div>
+              <div class="runtime-metrics"><span id="elapsed"></span><span id="usage"></span></div>
+            </div>
             <button id="send-button" class="send-button" type="submit" aria-label="发送消息" disabled><svg><use href="#i-arrow"/></svg></button>
           </div>
         </form>
         <input id="file-input" type="file" multiple hidden>
-        <div class="composer-caption"><span id="client-label">ElBot</span><span id="draft-status">让ElBot感知一切</span></div>
       </div>
       <div id="drop-overlay" class="drop-overlay" hidden><div><svg><use href="#i-plus"/></svg><strong>把文件放在这里</strong><span>添加到当前消息</span></div></div>
     </main>
 
     <aside id="notice-panel" class="notice-panel" aria-label="通知">
       <div class="notice-heading"><div><span class="eyebrow">ACTIVITY</span><h2>通知 <span id="notice-count">0</span></h2></div><button id="clear-notices" class="icon-button" type="button" aria-label="清空通知"><svg><use href="#i-trash"/></svg></button></div>
-      <div id="notice-scroll" class="notice-scroll"><div id="notice-empty" class="notice-empty"><span class="quiet-orbit"></span><p>一切安静，随时开始。</p><span>命令结果和运行提示会出现在这里</span></div><div id="notices" role="log" aria-live="polite" aria-label="运行通知"></div></div>
-      <div class="notice-footer"><span class="status-dot"></span> 命令结果与运行提示</div>
+      <div id="notice-scroll" class="notice-scroll"><div id="notice-empty" class="notice-empty"><span class="quiet-orbit"></span><p>一切安静，随时开始。</p><span>运行提示会出现在这里</span></div><div id="notices" role="log" aria-live="polite" aria-label="运行通知"></div></div>
     </aside>
   </div>
   <div id="notice-backdrop" class="notice-backdrop" hidden></div>
+  <div id="session-backdrop" class="session-backdrop" hidden></div>
 
   <dialog id="login-dialog" class="login-dialog" aria-labelledby="login-title">
     <button id="login-close" class="icon-button dialog-close" type="button" aria-label="关闭连接设置"><svg><use href="#i-close"/></svg></button>
-    <div class="login-brand"><img src="assets/elbot-logo.svg" alt=""><img src="assets/elbot-wordmark.svg" alt="ElBot"></div>
+    <div class="login-brand"><img class="brand-symbol" src="assets/elbot-logo.svg" alt=""><svg class="brand-wordmark" role="img" aria-label="ElBot"><use href="#elbot-wordmark"/></svg></div>
     <h2 id="login-title">接上你的 ElBot。</h2>
     <p class="login-description">登录后，继续这场对话。</p>
     <form id="login-form">
@@ -103,7 +140,7 @@
       <button id="login-submit" class="primary-button" type="submit">连接 ElBot <span>↗</span></button>
     </form>
     <button id="disconnect-button" class="text-button" type="button" hidden>断开连接并退出</button>
-    <p class="login-footnote">凭据仅保留在当前页面，关闭或刷新后清除。</p>
+    <p class="login-footnote">登录信息保留在当前标签页，退出时清除。聊天记录从所选会话读取。</p>
   </dialog>
   <noscript><div class="noscript">请启用 JavaScript 以连接 ElBot。</div></noscript>
 </body>

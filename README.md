@@ -17,9 +17,14 @@
 
 ### 可运行的 Web 前端
 
-下面是实际连接 ElBot 的运行截图，[完整源码与安装说明](frontend/) 已包含在本仓库中。
+下面是实际连接 ElBot 的浅色与深色主题，[完整源码与安装说明](frontend/) 已包含在本仓库中。支持会话搜索与恢复、历史懒加载、结构化状态卡和可点击确认操作。
 
-![ElBot Web 前端实际运行截图](assets/frontend/web-chat.png)
+<p align="center">
+  <img src="assets/frontend/web-light.png" width="49%" alt="ElBot Web 前端浅色主题" />
+  <img src="assets/frontend/web-dark.png" width="49%" alt="ElBot Web 前端深色主题" />
+</p>
+
+[查看 /status 状态卡示例](frontend/README.md#结构化状态卡)。
 
 将本仓库的 `frontend/` 目录复制到 ElBot 主配置文件所在目录，启用 CLI 远程服务并重启后，即可通过其 HTTP 地址打开。页面与远程 CLI 共用监听端口，无需额外启动 Web 服务器。HTML、CSS 和 JavaScript 均由用户管理，可直接修改或替换。
 
@@ -54,9 +59,14 @@ More showcases coming soon.
 
 ### Runnable Web Frontend
 
-This is a screenshot of the frontend connected to ElBot. [Complete source and setup instructions](frontend/) are included in this repository.
+These screenshots show the frontend connected to ElBot in light and dark themes. [Complete source and setup instructions](frontend/) are included, with session search and resume, paginated history, structured status cards, and clickable confirmation actions.
 
-![ElBot web frontend connected to ElBot](assets/frontend/web-chat.png)
+<p align="center">
+  <img src="assets/frontend/web-light.png" width="49%" alt="ElBot web frontend in light mode" />
+  <img src="assets/frontend/web-dark.png" width="49%" alt="ElBot web frontend in dark mode" />
+</p>
+
+[View the /status card example](frontend/README.md#structured-status-card).
 
 Copy this repository's `frontend/` directory alongside ElBot's main configuration file, enable the remote CLI server, and restart ElBot. Open the server's HTTP address to use the page. The page shares the remote CLI server's listening port, so no additional web server is needed. Users manage the HTML, CSS, and JavaScript files and can edit or replace them directly.
 
