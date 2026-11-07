@@ -41,11 +41,12 @@ token = "my-secret-token"  # 永远不要这样做
 ## id 稳定性
 
 - event id 在同一 source 内必须稳定且唯一
-- Elnis 用 `source + id` 去重
+- Elnis 用 `elwisp.name + source + id` 去重
 - 建议用事件的自然键做 id，如文件路径、commit SHA、文章 GUID
 
 ## 工具声明
 
 - `tool_list_names` 请求的工具最终由 Elnis `allowed_tools` 和 Security Policy 裁决
 - 不要声明超出 Elwisp 职责范围的工具
-- `tools` 字段用于声明 Elwisp 外部工具，用于查询 Elwisp 所在环境状态
+- `tools` 声明 Elwisp 提供的外部工具，默认允许，单 Elwisp 的 `disabled_external_tools` 可禁用指定工具
+- 宿主按 low 风险接入外部工具，工具服务负责实际风险边界；事件不能指定风险等级或获取宿主媒体管理权限

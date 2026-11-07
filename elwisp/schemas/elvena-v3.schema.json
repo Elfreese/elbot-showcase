@@ -1,94 +1,104 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Elvena v3 Event",
-  "description": "Elwisp to Elnis event payload (v3: adds segments & calls)",
+  "description": "Current Elwisp to Elnis event structure. Runtime policy and media-source validation are performed by Elnis.",
   "type": "object",
-  "required": ["version", "elwisp", "source", "id", "mode", "content", "targets"],
+  "required": ["version", "elwisp", "source", "id", "mode", "targets"],
   "properties": {
-    "version": {
-      "type": "string",
-      "const": "elvena.v3"
-    },
+    "version": {"type": "string", "const": "elvena.v3"},
     "elwisp": {
       "type": "object",
       "required": ["name"],
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-        "tags": {
-          "type": "array",
-          "items": { "type": "string" }
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
+        "tags": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "source": {"type": "string", "pattern": "\\S"},
+    "id": {"type": "string", "pattern": "\\S"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "mode": {"type": "string", "enum": ["record", "direct", "llm"]},
+    "title": {"type": "string"},
+    "format": {"type": "string", "enum": ["text", "elyph"]},
+    "content": {"type": "string"},
+    "model_slot": {"type": "string", "enum": ["elwisp1", "elwisp2", "elwisp3"]},
+    "tool_list_names": {"type": "array", "items": {"type": "string"}},
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "schema": {"type": "object"},
+          "timeout_seconds": {"type": "integer"},
+          "endpoint": {"type": "string"},
+          "foreground_only": {"type": "boolean"}
         }
       }
     },
-    "source": { "type": "string" },
-    "id": { "type": "string" },
-    "mode": {
-      "type": "string",
-      "enum": ["record", "direct", "llm"]
-    },
-    "title": { "type": "string" },
-    "content": { "type": "string" },
-    "format": {
-      "type": "string",
-      "enum": ["text", "elyph"]
-    },
-    "created_at": { "type": "string", "format": "date-time" },
-    "model_slot": {
-      "type": "string",
-      "enum": ["elwisp1", "elwisp2", "elwisp3"]
-    },
-    "tool_list_names": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "tools": { "type": "array" },
     "segments": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["kind"],
         "properties": {
-          "kind": { "type": "string", "enum": ["text", "image", "file"] },
-          "text": { "type": "string" },
-          "url": { "type": "string" },
-          "name": { "type": "string" },
-          "mime_type": { "type": "string" }
-        }
+          "kind": {"type": "string", "enum": ["text", "image", "file"]},
+          "text": {"type": "string"},
+          "url": {"type": "string", "description": "HTTP(S), base64 data URI, or a complete media:<sha256> identifier."},
+          "name": {"type": "string"},
+          "mime_type": {"type": "string"}
+        },
+        "if": {"properties": {"kind": {"const": "text"}}},
+        "then": {"properties": {"url": {"const": ""}}},
+        "else": {"required": ["url"], "properties": {"url": {"pattern": "\\S"}}}
       }
     },
     "calls": {
       "type": "array",
       "items": {
         "type": "object",
+        "required": ["api"],
         "properties": {
-          "kind": { "type": "string", "enum": ["raw", "capability"] },
-          "name": { "type": "string" },
-          "platform": { "type": "string" },
-          "target": {
-            "type": "object",
-            "properties": {
-              "platform": { "type": "string" },
-              "type": { "type": "string" },
-              "id": { "type": "string" }
-            }
-          },
-          "api": { "type": "string" },
-          "params": { "type": "object" }
+          "platform": {"type": "string"},
+          "api": {"type": "string", "pattern": "\\S"},
+          "params": {"type": "object"}
         }
       }
     },
-    "meta": { "type": "object" },
     "targets": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["platform"],
         "properties": {
-          "platform": { "type": "string" },
-          "type": { "type": "string" },
-          "id": { "type": "string" }
+          "platform": {"type": "string", "pattern": "\\S"},
+          "type": {"type": "string", "enum": ["", "private", "group"]},
+          "id": {"type": "string"}
+        },
+        "if": {"properties": {"platform": {"const": "all"}}},
+        "then": {"properties": {"type": {"const": ""}, "id": {"const": ""}}},
+        "else": {
+          "if": {"required": ["type"], "properties": {"type": {"enum": ["private", "group"]}}},
+          "then": {"required": ["id"], "properties": {"id": {"pattern": "\\S"}}},
+          "else": {"properties": {"id": {"const": ""}}}
         }
       }
+    },
+    "meta": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"mode": {"const": "llm"}}},
+      "then": {"required": ["content"], "properties": {"content": {"pattern": "\\S"}}}
+    },
+    {
+      "anyOf": [
+        {"required": ["content"], "properties": {"content": {"pattern": "\\S"}}},
+        {"required": ["segments"], "properties": {"segments": {"minItems": 1}}},
+        {"required": ["calls"], "properties": {"calls": {"minItems": 1}}}
+      ]
     }
-  }
+  ]
 }

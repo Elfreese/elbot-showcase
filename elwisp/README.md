@@ -42,10 +42,12 @@ ElBot: record / direct / llm
 | 模式 | 说明 |
 |------|------|
 | record | 只记录 |
-| direct | 直接通知到聊天平台 |
+| direct | 调用平台原生 API 或直接通知 |
 | llm | 后台 LLM 分析并决定是否通知 |
 
 ## 快速开始
+
+先按 [Elnis 配置与使用](https://github.com/Elflare/elbot/blob/main/docs/elnis-usage.md) 启用 Elnis，并让 token 配置引用 `ELNIS_TOKEN`。示例需要 Bash、curl 和 Python 3。
 
 ```bash
 git clone https://github.com/Elfreese/elbot-showcase.git
@@ -55,7 +57,9 @@ cp .env.example .env
 # 编辑 .env，填入 ELNIS_TOKEN
 
 cd examples/minimal-direct
+set -a
 . ../../.env
+set +a
 ./send_event.sh
 ```
 
@@ -70,11 +74,9 @@ elwisp/
 ├── docs/
 │   ├── elwisp-overview.md
 │   ├── elvena-v3.md
-│   ├── elvena-v2.md
 │   └── security.md
 ├── schemas/
-│   ├── elvena-v3.schema.json
-│   └── elvena-v2.schema.json
+│   └── elvena-v3.schema.json
 ├── scripts/
 │   └── curl-healthz.sh
 └── examples/
@@ -97,7 +99,7 @@ elwisp/
 
 - Elwisp 只观察和上报，不直接向聊天平台发消息
 - Token 只从环境变量读取
-- event id 在同一 source 内稳定且唯一
+- 事件身份由 `elwisp.name + source + id` 组成，同一外部事件使用稳定 ID
 - targets 由事件明确声明
 - 外部工具 endpoint 默认绑定 127.0.0.1
 
@@ -147,10 +149,12 @@ ElBot: record / direct / llm
 | Mode   | Description |
 |--------|-------------|
 | record | Log only |
-| direct | Push notification to chat |
+| direct | Invoke native platform APIs or send notifications |
 | llm    | Background LLM analysis with tool access |
 
 ## Quick Start
+
+Enable Elnis using the [configuration guide](https://github.com/Elflare/elbot/blob/main/docs/elnis-usage.md), with its token configuration referencing `ELNIS_TOKEN`. The examples use Bash, curl, and Python 3.
 
 ```bash
 git clone https://github.com/Elfreese/elbot-showcase.git
@@ -160,7 +164,9 @@ cp .env.example .env
 # Edit .env with your ELNIS_TOKEN
 
 cd examples/minimal-direct
+set -a
 . ../../.env
+set +a
 ./send_event.sh
 ```
 
@@ -175,11 +181,9 @@ elwisp/
 ├── docs/
 │   ├── elwisp-overview.md
 │   ├── elvena-v3.md
-│   ├── elvena-v2.md
 │   └── security.md
 ├── schemas/
-│   ├── elvena-v3.schema.json
-│   └── elvena-v2.schema.json
+│   └── elvena-v3.schema.json
 ├── scripts/
 │   └── curl-healthz.sh
 └── examples/
@@ -202,7 +206,7 @@ elwisp/
 
 - Elwisp only observes and reports; never sends chat messages directly
 - Token only from environment variables
-- event id is stable and unique within each source
+- Event identity is `elwisp.name + source + id`; use a stable ID for the same external event
 - targets are explicitly declared per event
 - External tool endpoints default to 127.0.0.1
 
