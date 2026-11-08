@@ -7,7 +7,7 @@
 | Showcase | 说明 |
 |----------|------|
 | [elwisp](elwisp/) | 外部事件监听——一条 curl 把任何外部信号接入 ElBot |
-| [frontend](frontend/) | 可运行的 Web 前端，包含完整 HTML、CSS、JavaScript 源码 |
+| [frontend](frontend/) | 聊天、日志与配置管理，包含完整 HTML、CSS、JavaScript 源码 |
 | [frontend-concepts](frontend-concepts/) | Web 前端概念稿，展示不同的界面风格 |
 | [hooks](hooks/) | Hook 插件示例——C / C++ / TypeScript 一次性脚本与 Python 持久 Hook |
 
@@ -17,7 +17,7 @@
 
 ### 可运行的 Web 前端
 
-下面是实际连接 ElBot 的浅色与深色主题，[完整源码与安装说明](frontend/) 已包含在本仓库中。支持会话搜索与恢复、历史懒加载、结构化状态卡和可点击确认操作。
+下面是实际连接 ElBot 的浅色与深色主题，[完整源码与安装说明](frontend/) 已包含在本仓库中。支持聊天、日志查询、配置与 Provider 管理，以及会话搜索、历史懒加载、结构化状态卡和确认操作。
 
 <p align="center">
   <img src="assets/frontend/web-light.png" width="49%" alt="ElBot Web 前端浅色主题" />
@@ -49,7 +49,7 @@ A collection of showcases for the [ElBot](https://github.com/Elflare/elbot) ecos
 | Showcase | Description |
 |----------|-------------|
 | [elwisp](elwisp/) | External event listener — one curl to feed any signal into ElBot |
-| [frontend](frontend/) | Runnable web frontend with complete HTML, CSS, and JavaScript source |
+| [frontend](frontend/) | Chat, logs, and configuration management with complete HTML, CSS, and JavaScript source |
 | [frontend-concepts](frontend-concepts/) | Web frontend concepts exploring different interface styles |
 | [hooks](hooks/) | Hook plugin examples — C / C++ / TypeScript one-shot scripts and a Python stateful Hook |
 
@@ -59,7 +59,7 @@ More showcases coming soon.
 
 ### Runnable Web Frontend
 
-These screenshots show the frontend connected to ElBot in light and dark themes. [Complete source and setup instructions](frontend/) are included, with session search and resume, paginated history, structured status cards, and clickable confirmation actions.
+These screenshots show the frontend connected to ElBot in light and dark themes. [Complete source and setup instructions](frontend/) are included, with chat, log queries, configuration and provider management, session search, paginated history, structured status cards, and confirmation actions.
 
 <p align="center">
   <img src="assets/frontend/web-light.png" width="49%" alt="ElBot web frontend in light mode" />
