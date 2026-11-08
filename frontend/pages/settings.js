@@ -195,7 +195,7 @@ export function createSettingsPage({ ui, api }) {
     try {
       const result = await api("/files?root=config");
       if (version !== generation) return;
-      entries = result.items;
+      entries = result.items.filter(entry => entry.path !== ".env.example" || entry.exists);
       fileList.replaceChildren();
       for (const entry of entries) {
         const button = element("button", "configuration-file", entry.name);
