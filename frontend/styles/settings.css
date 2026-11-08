@@ -2,9 +2,11 @@
 .configuration-files { display: flex; flex-direction: column; gap: .5rem; padding: .875rem; }
 .configuration-file { display: flex; flex-direction: column; gap: .25rem; width: 100%; padding: .75rem; text-align: left; border-radius: 7px; box-shadow: none; overflow-wrap: anywhere; }
 .configuration-file small { font-size: .75rem; color: var(--muted); }
+.configuration-file:not(.has-draft) small:empty { display: none; }
 .configuration-file.current, .provider-choice.current { background: var(--accent-surface); color: var(--accent-ink); }
 .configuration-file:hover:enabled, .provider-choice:hover:enabled { background: var(--hover); }
 .configuration-file.has-draft small::after { content: " · 未保存"; color: var(--amber); }
+.configuration-file.has-draft small:empty::after { content: "未保存"; }
 .configuration-editor { min-width: 0; }
 .editor-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
 .editor-heading h2 { font-size: 1.125rem; margin: 0 0 .25rem; font-weight: 550; overflow-wrap: anywhere; }

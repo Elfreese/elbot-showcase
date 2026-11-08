@@ -71,7 +71,7 @@ export function createSettingsPage({ ui, api }) {
     for (const tab of host.querySelectorAll("[data-mode]")) if (busy) tab.disabled = true;
     for (const button of fileList.querySelectorAll("button")) {
       const entry = entries.find(entry => entry.path === button.dataset.path);
-      button.querySelector("small").textContent = entry.writable ? entry.exists ? "可编辑" : "可创建" : "只读";
+      button.querySelector("small").textContent = entry.writable ? entry.exists ? "" : "可创建" : "只读";
       button.classList.toggle("current", button.dataset.path === selected);
       button.classList.toggle("has-draft", button.dataset.path === current?.entry.path && !!changed);
       button.disabled = busy;
@@ -178,7 +178,7 @@ export function createSettingsPage({ ui, api }) {
       current = document;
       raw.value = current.draft;
       raw.readOnly = !entry.writable;
-      report(entry.writable ? entry.path === "providers.toml" ? "保存并应用，无需重启" : "保存后需重启生效" : "文件只读");
+      report(entry.writable ? entry.path === "providers.toml" ? "" : "保存后需重启生效" : "文件只读");
       renderApplication();
       updateMode();
       update();
@@ -202,7 +202,7 @@ export function createSettingsPage({ ui, api }) {
         button.type = "button";
         button.dataset.path = entry.path;
         button.title = entry.exists ? entry.path : `${entry.path}（尚未创建）`;
-        button.append(element("small", "", entry.writable ? entry.exists ? "可编辑" : "可创建" : "只读"));
+        button.append(element("small", "", entry.writable ? entry.exists ? "" : "可创建" : "只读"));
         button.addEventListener("click", () => select(entry));
         fileList.append(button);
       }
