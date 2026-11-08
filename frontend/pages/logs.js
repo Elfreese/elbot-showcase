@@ -6,7 +6,7 @@ export function createLogsPage({ ui, api }) {
     <div class="management-heading"><div><h1>日志</h1></div></div>
     <form class="surface log-filters">
       <div class="form-grid">
-        <label>分类<select name="category"><option value="elbot">运行</option><option value="audit">审计</option><option value="elnis">Elnis</option></select></label>
+        <label>分类<select name="category"><option value="log">运行</option><option value="audit">审计</option><option value="elnis">Elnis</option></select></label>
         <label>最低等级<select name="level"><option value="">不限</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option></select></label>
         <label>天数<input name="days" type="number" min="1" step="1" value="1" required></label>
         <label>条数上限<input name="limit" type="number" min="1" step="1" value="100" required></label>
