@@ -1,0 +1,21 @@
+.log-filters, .log-results { max-width: 85rem; margin: 0 auto; }
+.log-filters .form-actions { margin-top: 1.25rem; }
+.advanced-filters { margin-top: 1.25rem; }
+.advanced-filters summary { color: var(--soft); cursor: pointer; font-size: .875rem; }
+.advanced-filters[open] summary { margin-bottom: 1rem; }
+.log-results { display: flex; flex-direction: column; gap: .875rem; }
+.log-entry { padding: 0; overflow: hidden; }
+.log-summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 11rem 4rem minmax(7rem, .8fr) minmax(0, 2fr); gap: .875rem; align-items: baseline; padding: 1rem 1.25rem; font-size: .875rem; }
+.log-time { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.log-level { color: var(--blue-light); font: .75rem var(--mono); }
+.level-warn .log-level, .level-warn > strong { color: var(--amber); }
+.level-error .log-level, .level-error > strong { color: var(--red); }
+.log-event { color: var(--soft); font-weight: 550; overflow-wrap: anywhere; }
+.log-preview { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-detail { padding: 1rem 1.25rem; margin: 0; background: var(--subtle); white-space: pre-wrap; overflow-wrap: anywhere; font: .8125rem/1.7 var(--mono); max-height: 32rem; overflow: auto; }
+.log-damaged { color: var(--amber); }
+.log-damaged summary { cursor: pointer; }
+@media (max-width: 900px) {
+  .log-summary { grid-template-columns: minmax(0, 1fr) auto; gap: .375rem .75rem; }
+  .log-event, .log-preview { grid-column: 1 / -1; }
+}
