@@ -1,4 +1,4 @@
-import { TomlDocument } from "../vendor/toml-patch.js";
+import { TomlDocument, stringify as stringifyTOML } from "../vendor/toml-patch.js";
 
 export const runtimeFields = [
   { path: ["runtime", "log_level"], label: "日志等级", type: "select", options: ["debug", "info", "warn", "error"], fallback: "info" },
@@ -13,6 +13,37 @@ export const runtimeFields = [
 ];
 
 export function readTOML(text) { return new TomlDocument(text).toJsObject; }
+
+function tomlKey(key) {
+  return /^[A-Za-z0-9_-]+$/.test(key) ? key : JSON.stringify(key);
+}
+
+function tomlValue(value) {
+  if (Array.isArray(value)) return `[${value.map(tomlValue).join(", ")}]`;
+  if (value && typeof value === "object") {
+    return `{ ${Object.entries(value).map(([key, item]) => `${tomlKey(key)} = ${tomlValue(item)}`).join(", ")} }`;
+  }
+  return stringifyTOML({ value }).trim().slice("value = ".length);
+}
+
+function tomlAssignment(key, value) {
+  return `${tomlKey(key)} = ${tomlValue(value)}`;
+}
+
+export function appendProviderTables(text, providers) {
+  if (!providers.length) return text;
+  const blocks = providers.map(([name, provider]) => {
+    const table = `providers.${tomlKey(name)}`;
+    const entries = Object.entries(provider).filter(([key]) => key !== "model_configs");
+    const lines = [`[${table}]`, ...entries.map(([key, value]) => tomlAssignment(key, value))];
+    for (const [model, config] of Object.entries(provider.model_configs || {})) {
+      lines.push("", `[${table}.model_configs.${tomlKey(model)}]`);
+      lines.push(...Object.entries(config).map(([key, value]) => tomlAssignment(key, value)));
+    }
+    return lines.join("\n");
+  });
+  return `${text.trimEnd()}\n\n${blocks.join("\n\n")}\n`;
+}
 
 export function patchTOML(text, edit) {
   const document = new TomlDocument(text);

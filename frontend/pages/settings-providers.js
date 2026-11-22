@@ -198,7 +198,7 @@ export function createProviderForm({ container, state, api, onChange, onSave, wr
     const draft = state.selected;
     if (!draft || !catalogFeedback) return;
     const errors = (state.catalog?.errors || []).filter(item => item.id === (draft.originalName ?? draft.name.trim()) && item.error);
-    catalogFeedback.textContent = state.catalogError || errors.map(item => item.error.message).join(" · ") || (state.catalog ? "当前运行配置的模型列表" : "读取模型…");
+    catalogFeedback.textContent = state.catalogError || errors.map(item => item.error).join(" · ") || (state.catalog ? "当前运行配置的模型列表" : "读取模型…");
     catalogFeedback.classList.toggle("error", !!state.catalogError || !!errors.length);
     renderModelList(draft);
   }

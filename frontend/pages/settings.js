@@ -1,5 +1,5 @@
 import { element } from "../core/dom.js";
-import { createConfigurationEditor, readTOML, patchTOML, runtimeFields, setField, createProviderDraft, readProviderDraft } from "./settings-editor.js";
+import { createConfigurationEditor, readTOML, patchTOML, appendProviderTables, runtimeFields, setField, createProviderDraft, readProviderDraft } from "./settings-editor.js";
 import { createProviderForm } from "./settings-providers.js";
 
 export function createSettingsPage({ ui, api }) {
@@ -241,16 +241,19 @@ export function createSettingsPage({ ui, api }) {
   }
   raw.addEventListener("input", () => { if (current) { current.draft = raw.value; delete current.providerState; update(); } });
   raw.addEventListener("keydown", event => {
-    if (event.key === "Tab") { event.preventDefault(); raw.setRangeText("  ", raw.selectionStart, raw.selectionEnd, "end"); raw.dispatchEvent(new Event("input")); }
+    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); raw.setRangeText("  ", raw.selectionStart, raw.selectionEnd, "end"); raw.dispatchEvent(new Event("input")); }
   });
   function flushProviders() {
     if (!current?.providerState) return;
     const values = providerForm ? providerForm.flush() : readProviderDraft(current.providerState);
     if (!current.providerState.changed) return;
+    const added = new Set(current.providerState.providers.filter(draft => draft.originalName === null).map(draft => draft.name.trim()));
+    const existingProviders = Object.fromEntries(Object.entries(values.providers).filter(([name]) => !added.has(name)));
     current.draft = patchTOML(current.draft, data => {
-      data.providers = values.providers;
+      data.providers = existingProviders;
       if (values.model_metadata) data.model_metadata = values.model_metadata;
     });
+    current.draft = appendProviderTables(current.draft, Object.entries(values.providers).filter(([name]) => added.has(name)));
     current.providerState.changed = false;
     raw.value = current.draft;
     update();
@@ -262,7 +265,7 @@ export function createSettingsPage({ ui, api }) {
     if (!result) return;
     application.classList.toggle("error", result.error);
     application.append(element("p", "", result.message));
-    for (const item of result.errors || []) application.append(element("p", "error", `${item.id}：${item.error.message}`));
+    for (const item of result.errors || []) application.append(element("p", "error", `${item.id}：${item.error}`));
   }
 
   function rebaseProviders(document) {

@@ -1,6 +1,6 @@
 import { element, icon, iconButton, formatBytes } from "../core/dom.js";
 
-export function createAttachments({ ui, state, nearBottom, scrollBottom, updateControls, hideCompletion, showLogin, addNotice }) {
+export function createAttachments({ ui, state, scrollBottom, updateControls, hideCompletion, showLogin, notify }) {
   function makeFileItem(local, media = null) {
     const item = { local, media, generation: state.generation, draft: !!local, status: media ? "ready" : "waiting",
       progress: 0, xhr: null, blobURL: null, loading: false, error: "", card: element("div", "file-card") };
@@ -14,7 +14,6 @@ export function createAttachments({ ui, state, nearBottom, scrollBottom, updateC
   }
 
   function renderFileCard(item) {
-    const follow = nearBottom();
     const name = item.media?.name || item.local?.name || "文件";
     const size = item.media?.size ?? item.local?.size ?? 0;
     const current = item.generation === state.generation && state.ready;
@@ -25,7 +24,7 @@ export function createAttachments({ ui, state, nearBottom, scrollBottom, updateC
       image.src = item.blobURL;
       image.alt = name;
       item.card.append(image);
-      image.addEventListener("load", () => { if (follow) scrollBottom(); }, { once: true });
+      image.addEventListener("load", () => { if (state.followBottom) scrollBottom(); }, { once: true });
     }
     const main = element("div", "file-card-main");
     const details = element("div", "file-details");
@@ -92,7 +91,7 @@ export function createAttachments({ ui, state, nearBottom, scrollBottom, updateC
     xhr.open("POST", "/cli/v1/files");
     xhr.setRequestHeader("Authorization", `Bearer ${state.mediaToken}`);
     xhr.timeout = 120000;
-    xhr.responseType = "json";
+    xhr.responseType = "text";
     const update = () => { renderFileCard(item); updateControls(); };
     const failed = text => {
       if (generation !== state.generation || !state.fileItems.has(item)) return;
@@ -108,8 +107,8 @@ export function createAttachments({ ui, state, nearBottom, scrollBottom, updateC
     });
     xhr.addEventListener("load", () => {
       if (generation !== state.generation || !state.fileItems.has(item)) return;
-      if (xhr.status !== 201) { failed(xhr.status === 401 ? "连接已失效" : "上传失败"); return; }
-      item.media = xhr.response;
+      if (xhr.status !== 201) { failed(xhr.responseText); return; }
+      item.media = JSON.parse(xhr.responseText);
       item.status = "ready";
       item.xhr = null;
       update();
@@ -147,7 +146,7 @@ export function createAttachments({ ui, state, nearBottom, scrollBottom, updateC
         const response = await fetch(`/cli/v1/files/${encodeURIComponent(item.media.id)}`, {
           headers: { Authorization: `Bearer ${state.mediaToken}` }, signal: state.http.signal,
         });
-        if (!response.ok) throw new Error(response.status === 404 ? "附件已失效" : "附件获取失败");
+        if (!response.ok) throw new Error(await response.text());
         const blob = await response.blob();
         if (generation !== state.generation || !state.fileItems.has(item)) return;
         item.blobURL = URL.createObjectURL(blob);
@@ -161,7 +160,7 @@ export function createAttachments({ ui, state, nearBottom, scrollBottom, updateC
         link.remove();
       }
     } catch (error) {
-      if (error.name !== "AbortError" && generation === state.generation) addNotice("ERROR", error.message);
+      if (error.name !== "AbortError" && generation === state.generation) notify("ERROR", error.message);
     } finally {
       item.loading = false;
       if (state.fileItems.has(item)) renderFileCard(item);

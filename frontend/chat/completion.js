@@ -27,22 +27,9 @@ export function applyCompletion(text, item) {
   return { text: text.slice(0, start) + item.Text + text.slice(end), cursor: start + item.Text.length };
 }
 
-export function fileCompletions(text, cursor, names) {
-  const prefix = text.slice(0, cursor);
-  const match = /(?:^|\s)#(?:"([^"]*)|([^\s"]*))$/u.exec(prefix);
-  if (!match) return [];
-  const start = match.index + match[0].indexOf("#");
-  const query = (match[1] ?? match[2]).toLocaleLowerCase();
-  const end = text[cursor] === '"' ? cursor + 1 : cursor;
-  return [...new Set(names)].filter(name => name.toLocaleLowerCase().includes(query)).map(name => ({
-    Text: `#${/[\s"\\]/u.test(name) ? JSON.stringify(name) : name}`,
-    Label: name, Description: "当前消息的附件", Kind: "local_file",
-    ReplaceStart: byteOffset(text, start), ReplaceEnd: byteOffset(text, end),
-  }));
-}
 
 
-export function createCompletion({ ui, state, connection, resizeInput, updateControls, addNotice }) {
+export function createCompletion({ ui, state, connection, resizeInput, updateControls, notify }) {
   function requestCompletion(text, cursor) {
     if (!state.ready) return Promise.reject(new Error("请先连接 ElBot"));
     const id = `c-${++state.sequence}`;
@@ -107,14 +94,13 @@ export function createCompletion({ ui, state, connection, resizeInput, updateCon
     }
     const base = ui["message-input"].value;
     const cursor = ui["message-input"].selectionStart;
-    const local = fileCompletions(base, cursor, state.draftFiles.map(file => file.media?.name || file.local.name));
     try {
-      const items = local.length ? local : await requestCompletion(base, byteOffset(base, cursor));
+      const items = await requestCompletion(base, byteOffset(base, cursor));
       if (base !== ui["message-input"].value || cursor !== ui["message-input"].selectionStart || !items.length) return;
       state.completion = { base, items, index: delta < 0 ? items.length - 1 : 0 };
       applySelectedCompletion();
       if (items.length === 1) hideCompletion();
-    } catch (error) { if (state.ready) addNotice("WARN", error.message); }
+    } catch (error) { if (state.ready) notify("WARN", error.message); }
   }
 
   function clearCompletions() {

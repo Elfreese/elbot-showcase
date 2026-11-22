@@ -30,14 +30,34 @@ export function iconButton(name, label, action) {
   return button;
 }
 
+// execCommand 虽已废弃，但不受 secure context 限制，局域网 http 访问时作为保底。
+function legacyCopy(text) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+  document.body.append(area);
+  const selection = document.getSelection();
+  const previous = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  area.select();
+  area.setSelectionRange(0, area.value.length);
+  let copied = false;
+  try { copied = document.execCommand("copy"); } catch { copied = false; }
+  area.remove();
+  if (previous) { selection.removeAllRanges(); selection.addRange(previous); }
+  return copied;
+}
+
+// 只负责写入剪贴板并返回结果；反馈由调用方通过 clipboard 决定。
 export async function copyText(text, button) {
-  try {
-    await navigator.clipboard.writeText(text);
-    button.title = "已复制";
-  } catch {
-    button.title = "无法访问剪贴板，请手动复制";
+  let copied = false;
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(text); copied = true; } catch { copied = false; }
   }
+  if (!copied) copied = legacyCopy(text);
+  button.title = copied ? "已复制" : "复制失败";
   setTimeout(() => { button.title = button.getAttribute("aria-label") || "复制"; }, 1500);
+  return copied;
 }
 
 export function formatBytes(size) {

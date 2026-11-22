@@ -1,6 +1,7 @@
 import { readCredentials, saveCredentials } from "./core/auth.js";
 import { createAPI } from "./core/api.js";
 import { createConnection } from "./core/connection.js";
+import { createNotify } from "./core/notify.js";
 import { createRouter } from "./core/router.js";
 import { icon, element } from "./core/dom.js";
 import { createChatPage } from "./pages/chat.js";
@@ -9,6 +10,7 @@ import { createSettingsPage } from "./pages/settings.js";
 
 const ui = Object.fromEntries([...document.querySelectorAll("[id]")].map(node => [node.id, node]));
 const timeFormat = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+const notify = createNotify();
 let warned = false;
 let remembered = null;
 let account = "";
@@ -31,7 +33,9 @@ function addNotice(level, text) {
   ui["notice-count"].textContent = ui.notices.childElementCount;
   ui["notice-empty"].hidden = true;
   if (follow) scroll.scrollTop = scroll.scrollHeight;
-  if (document.body.classList.contains("notices-hidden")) ui["notice-unread"].hidden = false;
+  if (document.body.classList.contains("notices-hidden") || sidebarTab !== "notice") ui["notice-unread"].hidden = false;
+  // 告警与错误同时弹 toast，避免用户没侧栏时错过。
+  if (level === "WARN" || level === "ERROR") notify(level, text.split("\n")[0].slice(0, 160));
 }
 
 function clearNotices() {
@@ -44,7 +48,7 @@ function clearNotices() {
 function storageWarning() {
   if (warned) return;
   warned = true;
-  addNotice("WARN", "登录信息保存失败，下次需重新登录");
+  notify("WARN", "登录信息保存失败，下次需重新登录");
 }
 
 function showLogin(message = "") {
@@ -53,13 +57,39 @@ function showLogin(message = "") {
   if (!ui["login-dialog"].open) ui["login-dialog"].showModal();
 }
 
-function toggleNotices(show) {
+let sidebarTab = "workspace";
+let sidebarPinned = false;
+
+function setSidebarPinned(pinned) {
+  sidebarPinned = pinned;
+  const label = pinned ? "取消固定侧栏" : "固定侧栏";
+  for (const button of [ui["notice-pin"], ui["workspace-pin"]]) {
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
+    button.setAttribute("aria-pressed", String(pinned));
+  }
+}
+
+function setSidebarTab(tab) {
+  sidebarTab = tab;
+  const notice = tab === "notice";
+  ui["notice-view"].hidden = !notice;
+  ui["workspace-view"].hidden = notice;
+  ui["notice-tab"].classList.toggle("selected", notice);
+  ui["notice-tab"].setAttribute("aria-selected", String(notice));
+  ui["workspace-tab"].classList.toggle("selected", !notice);
+  ui["workspace-tab"].setAttribute("aria-selected", String(!notice));
+  ui["notice-panel"].setAttribute("aria-label", notice ? "通知" : "Workspace");
+  if (notice) ui["notice-unread"].hidden = true;
+}
+
+function toggleSidebar(show) {
   if (show && matchMedia("(max-width: 760px)").matches) chat.closeSessions();
   document.body.classList.toggle("notices-hidden", !show);
   ui["notice-toggle"].setAttribute("aria-expanded", String(show));
   ui["notice-panel"].inert = !show;
   ui["notice-backdrop"].hidden = !show || !matchMedia("(max-width: 1000px)").matches;
-  if (show) ui["notice-unread"].hidden = true;
+  if (show && sidebarTab === "notice") ui["notice-unread"].hidden = true;
 }
 
 const connection = createConnection({
@@ -94,22 +124,15 @@ const connection = createConnection({
   },
   onAuthenticationError(message) { showLogin(message); },
 });
-const api = createAPI({
-  getCredentials: () => connection.state.credentials,
-  getConnectionToken: () => connection.state.apiToken,
-  onUnauthorized() {
-    connection.disconnect();
-    showLogin("认证失效，请检查 ID / Token");
-  },
-});
-const chat = createChatPage({ ui, api, connection, addNotice, showLogin, closeNotices: () => toggleNotices(false) });
+const api = createAPI(() => connection.state.apiToken);
+const chat = createChatPage({ ui, api, connection, notify, showLogin, closeNotices: (force = false) => { if (force || !sidebarPinned) toggleSidebar(false); } });
 const logs = createLogsPage({ ui, api });
 const settings = createSettingsPage({ ui, api });
 createRouter({
   pages: { chat, logs, settings },
   onChange(name) {
     ui["session-toggle"].hidden = name !== "chat";
-    document.title = `${{ chat: "聊天", logs: "日志", settings: "设置" }[name]} · ElBot`;
+    chat.setPageTitle(name);
   },
 });
 
@@ -154,11 +177,21 @@ ui["disconnect-button"].addEventListener("click", () => {
   ui["login-token"].value = "";
   showLogin();
 });
-ui["notice-toggle"].addEventListener("click", () => toggleNotices(document.body.classList.contains("notices-hidden")));
-ui["notice-backdrop"].addEventListener("click", () => toggleNotices(false));
+ui["notice-toggle"].addEventListener("click", () => toggleSidebar(document.body.classList.contains("notices-hidden")));
+document.addEventListener("pointerdown", event => {
+  if (!document.body.classList.contains("notices-hidden") && !sidebarPinned && !event.target.closest("#notice-panel") && !event.target.closest("#notice-toggle")) toggleSidebar(false);
+});
+ui["notice-pin"].addEventListener("click", () => setSidebarPinned(!sidebarPinned));
+ui["workspace-pin"].addEventListener("click", () => setSidebarPinned(!sidebarPinned));
+ui["notice-tab"].addEventListener("click", () => setSidebarTab("notice"));
+ui["workspace-tab"].addEventListener("click", () => {
+  setSidebarTab("workspace");
+  chat.refreshWorkspace();
+});
+ui["notice-backdrop"].addEventListener("click", () => toggleSidebar(false));
 ui["clear-notices"].addEventListener("click", clearNotices);
-matchMedia("(max-width: 1000px)").addEventListener("change", () => toggleNotices(!document.body.classList.contains("notices-hidden")));
-document.addEventListener("keydown", event => { if (event.key === "Escape") toggleNotices(false); });
+matchMedia("(max-width: 1000px)").addEventListener("change", () => toggleSidebar(!document.body.classList.contains("notices-hidden")));
+document.addEventListener("keydown", event => { if (event.key === "Escape") toggleSidebar(false); });
 window.addEventListener("pagehide", () => connection.disconnect());
 window.addEventListener("pageshow", event => {
   if (event.persisted) {
@@ -167,7 +200,8 @@ window.addEventListener("pageshow", event => {
   }
 });
 applyTheme();
-toggleNotices(false);
+setSidebarTab("workspace");
+toggleSidebar(false);
 remembered = readCredentials(storageWarning);
 if (remembered) {
   ui["client-id"].value = remembered.clientID;
