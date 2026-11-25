@@ -1,6 +1,6 @@
 import { element, icon, iconButton, formatBytes } from "../core/dom.js";
 
-export function createAttachments({ ui, state, scrollBottom, updateControls, hideCompletion, showLogin, notify }) {
+export function createAttachments({ ui, state, followContent, updateControls, hideCompletion, showLogin, notify }) {
   function makeFileItem(local, media = null) {
     const item = { local, media, generation: state.generation, draft: !!local, status: media ? "ready" : "waiting",
       progress: 0, xhr: null, blobURL: null, loading: false, error: "", card: element("div", "file-card") };
@@ -24,7 +24,7 @@ export function createAttachments({ ui, state, scrollBottom, updateControls, hid
       image.src = item.blobURL;
       image.alt = name;
       item.card.append(image);
-      image.addEventListener("load", () => { if (state.followBottom) scrollBottom(); }, { once: true });
+      image.addEventListener("load", followContent, { once: true });
     }
     const main = element("div", "file-card-main");
     const details = element("div", "file-details");

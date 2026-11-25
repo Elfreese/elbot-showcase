@@ -55,7 +55,7 @@ export function createSettingsPage({ ui, api }) {
   }
 
   function update() {
-    const changed = current && (current.source !== current.draft || current.providerState?.changed);
+    const changed = current && editor.isDirty(current.entry.path);
     const providers = current?.entry.path === "providers.toml";
     const busy = !!current?.saving || applying;
     dirty.textContent = current ? current.entry.writable ? changed ? "未保存" : current.create ? "未创建" : "已保存" : "只读" : "";
@@ -73,7 +73,7 @@ export function createSettingsPage({ ui, api }) {
       const entry = entries.find(entry => entry.path === button.dataset.path);
       button.querySelector("small").textContent = entry.writable ? entry.exists ? "" : "可创建" : "只读";
       button.classList.toggle("current", button.dataset.path === selected);
-      button.classList.toggle("has-draft", button.dataset.path === current?.entry.path && !!changed);
+      button.classList.toggle("has-draft", editor.isDirty(entry.path));
       button.disabled = busy;
     }
   }

@@ -38,10 +38,7 @@ export function createMermaid({ clipboard }) {
     toolbar.append(element("span", "mermaid-label", "Mermaid"));
     const body = element("div", "mermaid-body");
     block.append(toolbar, body);
-    if (!mount(body, source)) {
-      block.remove();
-      return null;
-    }
+    if (!mount(body, source)) return null;
     const copyButton = iconButton("copy", "复制图表源码", () => clipboard.copy(source, copyButton, "图表源码已复制"));
     toolbar.append(
       copyButton,

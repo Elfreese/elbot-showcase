@@ -3,11 +3,57 @@ import { element } from "../core/dom.js";
 export function createToolPreload({ ui, api, requestCompletion }) {
   const button = ui["preload-button"], menu = ui["preload-menu"], list = ui["preload-list"];
   const search = ui["preload-search"], empty = ui["preload-empty"];
-  const selected = new Set();
-  let request;
+  const recentBar = ui["preload-recent"];
+  const selected = new Map(); // 指令去重；只有从标签入口选中时，值才是标签名。
+  let request, storageKey = "", recent = [];
 
-  function updateLabel() {
+  function syncSelection() {
     ui["preload-label"].textContent = selected.size ? `预载 (${selected.size})` : "预载";
+    for (const box of list.querySelectorAll("input")) box.checked = selected.has(box.value);
+    for (const chip of recentBar.children) chip.setAttribute("aria-pressed", String(selected.has(chip.value)));
+  }
+
+  function select(directive, tag, checked) {
+    if (checked) selected.set(directive, tag);
+    else selected.delete(directive);
+    syncSelection();
+  }
+
+  function renderRecent() {
+    recentBar.replaceChildren(...recent.map(name => {
+      const chip = element("button", "preload-tag", name);
+      chip.type = "button";
+      chip.title = name;
+      chip.value = `@tool:${name}`;
+      chip.addEventListener("click", () => select(chip.value, name, !selected.has(chip.value)));
+      return chip;
+    }));
+    recentBar.hidden = !recent.length;
+  }
+
+  function setAccount(account) {
+    storageKey = account && `elbot.preload.recentTags.${account}`;
+    recent = [];
+    if (storageKey) {
+      try {
+        const names = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        if (Array.isArray(names)) recent = names.filter(name => typeof name === "string" && name).slice(0, 3);
+      } catch { /* 存储不可用时只在本次页面中记忆。 */ }
+    }
+    renderRecent();
+    syncSelection();
+  }
+
+  function clear() { selected.clear(); close(); syncSelection(); }
+
+  function sent() {
+    const used = [...selected.values()].filter(Boolean).reverse();
+    if (storageKey && used.length) {
+      recent = [...new Set([...used, ...recent])].slice(0, 3);
+      try { localStorage.setItem(storageKey, JSON.stringify(recent)); } catch { /* 保留内存中的记录。 */ }
+      renderRecent();
+    }
+    clear();
   }
 
   function close() {
@@ -69,6 +115,7 @@ export function createToolPreload({ ui, api, requestCompletion }) {
           const box = element("input");
           box.type = "checkbox";
           box.value = directive;
+          if (kind === "tag") box.dataset.tag = name;
           box.checked = selected.has(box.value);
           row.append(box, element("span", "", name));
           group.append(row);
@@ -80,15 +127,7 @@ export function createToolPreload({ ui, api, requestCompletion }) {
     }));
   });
 
-  list.addEventListener("change", ({ target }) => {
-    if (target.checked) selected.add(target.value);
-    else selected.delete(target.value);
-    // 同名工具与标签发出的指令相同，勾选状态也应一致。
-    for (const box of list.querySelectorAll("input")) {
-      if (box.value === target.value) box.checked = target.checked;
-    }
-    updateLabel();
-  });
+  list.addEventListener("change", ({ target }) => select(target.value, target.dataset.tag, target.checked));
   menu.addEventListener("keydown", event => {
     if (event.isComposing) return;
     if (event.key === "Escape") {
@@ -101,17 +140,16 @@ export function createToolPreload({ ui, api, requestCompletion }) {
     }
   });
   function dismissOutside({ target }) {
-    if (!menu.hidden && !menu.contains(target) && !button.contains(target)) close();
+    if (!menu.hidden && !menu.contains(target) && !button.contains(target) && !recentBar.contains(target)) close();
   }
   document.addEventListener("pointerdown", dismissOutside);
   document.addEventListener("focusin", dismissOutside);
 
   return {
-    close,
-    clear() { selected.clear(); updateLabel(); close(); },
+    close, clear, sent, setAccount,
     withText(text) {
       if (!selected.size) return text;
-      const tags = [...selected].join(" ");
+      const tags = [...selected.keys()].join(" ");
       return text ? `${tags}\n${text}` : tags;
     },
   };

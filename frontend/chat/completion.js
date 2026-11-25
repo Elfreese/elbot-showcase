@@ -29,7 +29,7 @@ export function applyCompletion(text, item) {
 
 
 
-export function createCompletion({ ui, state, connection, resizeInput, updateControls, notify }) {
+export function createCompletion({ ui, state, connection, resizeInput, updateSendButton, notify }) {
   function requestCompletion(text, cursor) {
     if (!state.ready) return Promise.reject(new Error("请先连接 ElBot"));
     const id = `c-${++state.sequence}`;
@@ -63,7 +63,7 @@ export function createCompletion({ ui, state, connection, resizeInput, updateCon
     ui["message-input"].setSelectionRange(applied.cursor, applied.cursor);
     resizeInput();
     renderCompletion();
-    updateControls();
+    updateSendButton();
   }
 
   function renderCompletion() {

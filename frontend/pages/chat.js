@@ -1,6 +1,5 @@
-import { element, icon } from "../core/dom.js";
 import { createMessages } from "../chat/messages.js";
-import { renderDiff } from "../chat/diff.js";
+import { createWorkspace } from "../chat/workspace.js";
 import { createStatus } from "../chat/status.js";
 import { createSessions } from "../chat/sessions.js";
 import { createQuestions } from "../chat/questions.js";
@@ -8,6 +7,7 @@ import { createSearchPicker } from "../core/search-picker.js";
 import { openModelPicker } from "../chat/models.js";
 import { createToolPreload } from "../chat/tool-preload.js";
 import { createAttachments } from "../chat/attachments.js";
+import { createComposerHistory } from "../chat/composer-history.js";
 import { createCompletion } from "../chat/completion.js";
 import { createMessageNav } from "../chat/nav.js";
 import { registerChatShortcuts } from "../chat/shortcuts.js";
@@ -23,10 +23,10 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     statusQuery: null, statusPhase: "idle", streamPhase: "",
     contextUsage: null, totalTokens: null, cacheUsage: null, messages: [],
     sessionID: "", get home() { return !this.sessionID; }, navigating: false, recoveryBlocked: false, account: "",
-    sessionPage: null, sessionQuery: "", listVersion: 0, listing: false,
+    sessionPage: null, sessionQuery: "", listVersion: 0, listingPage: 0,
     historyToolCalls: new Map(), // 当前会话历史调用 ID → 名称与原始参数，供跨页结果卡片补齐。
     viewVersion: 0, historyPage: 0, historyNext: false, historyLoading: false, messageIDs: new Set(), historyInputIDs: new Set(),
-    visible: false, followBottom: true, scrollTop: 0, workspace: { side: "agent", tab: "changes", directoryPath: "", directory: null, infoVersion: 0, gitVersion: 0, directoryVersion: 0, loaded: false, syncing: false },
+    visible: false, followBottom: true, scrollTop: 0,
   };
   const feedback = createFeedback({ notify });
   const clipboard = createClipboard({ feedback });
@@ -40,265 +40,29 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     ui, state, api, notify, updateControls, renderMarkdown: messages.renderMarkdown,
   });
   const questions = createQuestions({ ui, state, api, notify, updateTitle: status.updateTitle });
+  const history = createComposerHistory(ui["message-input"], () => api("/input-history", { signal: state.http.signal }),
+    () => { resizeInput(); updateSendButton(); }, notify);
+  const workspace = createWorkspace({ ui, state, api });
   const sessions = createSessions({
-    ui, state, api, clearConversation, updateControls, notify, closeNotices, refreshWorkspace, questions, handleMessage,
+    switchDraft: history.switchSession,
+    ui, state, api, clearConversation, updateControls, notify, closeNotices, questions, handleMessage,
+    onSessionChanged: workspace.sessionChanged,
     updateRuntime: status.updateRuntime, refreshStatus: status.refreshStatus,
-    newMessage: messages.newMessage, renderMessage: messages.renderMessage, scrollBottom: messages.scrollBottom,
+    createMessage: messages.createMessage, newMessage: messages.newMessage, renderMessage: messages.renderMessage, scrollBottom: messages.scrollBottom,
   });
-  const completion = createCompletion({ ui, state, connection, resizeInput, updateControls, notify });
+  const completion = createCompletion({ ui, state, connection, resizeInput, updateSendButton, notify });
   createMessageNav({ ui, state });
   const picker = createSearchPicker(ui);
   const toolPreload = createToolPreload({ ui, api, requestCompletion: completion.requestCompletion });
   const attachments = createAttachments({
     ui, state, updateControls, notify, showLogin, hideCompletion: completion.hideCompletion,
-    scrollBottom: messages.scrollBottom,
+    followContent: messages.followContent,
   });
 
-  function updateWorkspaceControls() {
-    const disabled = !state.ready || !state.sessionID || state.navigating || state.recoveryBlocked || state.workspace.syncing;
-    ui["workspace-browse"].disabled = disabled;
-    ui["agent-to-user"].disabled = disabled;
-    ui["user-to-agent"].disabled = disabled;
-    ui["workspace-refresh"].disabled = disabled;
-    ui["git-agent-side"].disabled = disabled;
-    ui["git-user-side"].disabled = disabled;
-  }
-
-  function renderWorkspaceSettings() {
-    const data = state.workspace.info;
-    const agentPath = data?.agent_path || "未设置";
-    const userPath = data?.user_path || "未设置";
-    ui["agent-path"].textContent = agentPath;
-    ui["agent-path"].title = agentPath;
-    ui["user-path"].textContent = userPath;
-    ui["user-path"].title = userPath;
-    ui["agent-to-user"].checked = !!data?.agent_to_user;
-    ui["user-to-agent"].checked = !!data?.user_to_agent;
-    updateWorkspaceControls();
-  }
-
-  function renderGitStatus(data) {
-    const changes = data.changes || [];
-    const count = changes.length;
-    ui["git-change-count"].textContent = count;
-    ui["workspace-change-indicator"].textContent = count ? count : "";
-    ui["workspace-change-indicator"].hidden = !count;
-    ui["git-path"].textContent = data.path || "";
-    ui["git-path"].title = data.root || data.path || "";
-    ui["git-changes"].replaceChildren();
-    if (!data.is_git) {
-      ui["git-feedback"].textContent = "此工作区不属于 Git 仓库";
-      return;
-    }
-    ui["git-feedback"].textContent = count ? count + " 个文件有改动" : "工作区干净";
-    if (!count) return;
-    const groups = [
-      ["已暂存的更改", changes.filter(change => change.staged)],
-      ["更改", changes.filter(change => change.worktree || change.status === "untracked")],
-    ];
-    for (const [label, files] of groups) {
-      if (!files.length) continue;
-      const group = element("section", "git-change-group");
-      group.append(element("h3", "git-change-heading", label));
-      for (const change of files) group.append(createGitFile(change));
-      ui["git-changes"].append(group);
-    }
-  }
-
-  function createGitFile(change) {
-    const details = element("details", "git-file");
-    const summary = element("summary", "git-file-summary");
-    const statusLabel = ({ modified: "M", added: "A", deleted: "D", renamed: "R", untracked: "U" })[change.status] || "?";
-    const status = element("span", "git-file-status " + change.status, statusLabel);
-    const path = element("span", "git-file-path", change.path);
-    summary.append(status, path);
-    const content = element("div", "git-file-diff");
-    details.append(summary, content);
-    let loaded = false;
-    let loading = false;
-    details.addEventListener("toggle", async () => {
-      if (!details.open || loaded || loading) return;
-      loading = true;
-      content.textContent = "读取 diff…";
-      const version = state.workspace.gitVersion;
-      const sessionID = state.sessionID;
-      const side = state.workspace.side;
-      try {
-        const query = new URLSearchParams({ side, path: change.path });
-        const data = await api("/workspace/git/diff?" + query);
-        if (version !== state.workspace.gitVersion || sessionID !== state.sessionID || side !== state.workspace.side) return;
-        renderDiff(content, data.diff || "", summary);
-        loaded = true;
-      } catch (error) {
-        if (version === state.workspace.gitVersion && sessionID === state.sessionID) content.textContent = error.message;
-      } finally {
-        loading = false;
-      }
-    });
-    return details;
-  }
-
-  async function refreshGit() {
-    if (!state.ready || !state.sessionID) return;
-    const version = ++state.workspace.gitVersion;
-    const sessionID = state.sessionID;
-    const side = state.workspace.side;
-    ui["git-feedback"].textContent = "读取 Git 状态…";
-    try {
-      const data = await api("/workspace/git?" + new URLSearchParams({ side }));
-      if (version !== state.workspace.gitVersion || sessionID !== state.sessionID || side !== state.workspace.side) return;
-      renderGitStatus(data);
-    } catch (error) {
-      if (version === state.workspace.gitVersion && sessionID === state.sessionID) {
-        ui["git-feedback"].textContent = error.message;
-        ui["git-changes"].replaceChildren();
-        ui["git-change-count"].textContent = "!";
-        ui["workspace-change-indicator"].textContent = "!";
-        ui["workspace-change-indicator"].hidden = false;
-      }
-    }
-  }
-
-  async function refreshWorkspace() {
-    if (!state.ready || !state.sessionID) {
-      state.workspace.infoVersion++;
-      state.workspace.gitVersion++;
-      state.workspace.directoryVersion++;
-      state.workspace.sessionID = "";
-      state.workspace.directory = null;
-      ui["directory-path"].textContent = "";
-      ui["directory-list"].replaceChildren();
-      ui["directory-up"].disabled = true;
-      ui["set-user-workspace"].disabled = true;
-      ui["directory-feedback"].textContent = "连接后查看工作区";
-      ui["workspace-settings-feedback"].textContent = "";
-      state.workspace.info = null;
-      state.workspace.loaded = false;
-      renderWorkspaceSettings();
-      ui["git-feedback"].textContent = "连接后查看工作区";
-      ui["git-changes"].replaceChildren();
-      ui["git-change-count"].textContent = "0";
-      ui["workspace-change-indicator"].hidden = true;
-      return;
-    }
-    const version = ++state.workspace.infoVersion;
-    const sessionID = state.sessionID;
-    if (state.workspace.sessionID !== sessionID) {
-      state.workspace.sessionID = sessionID;
-      state.workspace.directoryVersion++;
-      state.workspace.directory = null;
-      state.workspace.info = null;
-      ui["directory-path"].textContent = "";
-      ui["directory-list"].replaceChildren();
-      ui["directory-up"].disabled = true;
-      ui["set-user-workspace"].disabled = true;
-      renderWorkspaceSettings();
-    }
-    ui["git-feedback"].textContent = "读取工作区…";
-    try {
-      const data = await api("/workspace");
-      if (version !== state.workspace.infoVersion || sessionID !== state.sessionID) return;
-      state.workspace.info = data;
-      state.workspace.loaded = true;
-      renderWorkspaceSettings();
-      await refreshGit();
-    } catch (error) {
-      if (version === state.workspace.infoVersion && sessionID === state.sessionID) {
-        ui["git-feedback"].textContent = error.message;
-        renderWorkspaceSettings();
-      }
-    }
-  }
-
-  function setWorkspaceContentTab(tab) {
-    state.workspace.tab = tab;
-    const changes = tab === "changes";
-    ui["workspace-changes-tab"].classList.toggle("selected", changes);
-    ui["workspace-changes-tab"].setAttribute("aria-selected", String(changes));
-    ui["workspace-directory-tab"].classList.toggle("selected", !changes);
-    ui["workspace-directory-tab"].setAttribute("aria-selected", String(!changes));
-    ui["git-view"].hidden = !changes;
-    ui["directory-view"].hidden = changes;
-  }
-
-  async function browseDirectories(path = "") {
-    if (!state.ready || !state.sessionID) return;
-    const version = ++state.workspace.directoryVersion;
-    const sessionID = state.sessionID;
-    ui["directory-feedback"].textContent = "读取目录…";
-    ui["directory-list"].replaceChildren();
-    ui["set-user-workspace"].disabled = true;
-    try {
-      const query = path ? "?" + new URLSearchParams({ path }) : "";
-      const data = await api("/workspace/directories" + query);
-      if (version !== state.workspace.directoryVersion || sessionID !== state.sessionID) return;
-      state.workspace.directory = data;
-      ui["directory-path"].textContent = data.path;
-      ui["directory-path"].title = data.path;
-      ui["directory-up"].disabled = !data.parent;
-      ui["set-user-workspace"].disabled = !data.path;
-      ui["directory-feedback"].textContent = data.directories.length ? "" : "没有子目录";
-      for (const directory of data.directories) {
-        const button = element("button", "directory-entry");
-        button.type = "button";
-        button.title = directory.path;
-        button.append(icon("folder"), element("span", "", directory.name));
-        button.addEventListener("click", () => browseDirectories(directory.path));
-        ui["directory-list"].append(button);
-      }
-    } catch (error) {
-      if (version === state.workspace.directoryVersion && sessionID === state.sessionID) {
-        ui["directory-feedback"].textContent = error.message;
-      }
-    }
-  }
-
-  async function chooseUserWorkspace() {
-    const path = state.workspace.directory?.path;
-    if (!path) return;
-    const view = state.viewVersion;
-    state.workspace.infoVersion++;
-    state.workspace.gitVersion++;
-    ui["set-user-workspace"].disabled = true;
-    ui["directory-feedback"].textContent = "更新用户工作区…";
-    try {
-      const info = await api("/workspace/user", { method: "PUT", body: { path } });
-      if (view !== state.viewVersion) return;
-      state.workspace.info = info;
-      renderWorkspaceSettings();
-      ui["directory-feedback"].textContent = "用户工作区已更新";
-      await refreshGit();
-    } catch (error) {
-      if (view === state.viewVersion) ui["directory-feedback"].textContent = error.message;
-    } finally {
-      if (view === state.viewVersion) ui["set-user-workspace"].disabled = !state.workspace.directory?.path;
-    }
-  }
-
-  async function updateWorkspaceSync() {
-    const agentToUser = ui["agent-to-user"].checked;
-    const userToAgent = ui["user-to-agent"].checked;
-    const view = state.viewVersion;
-    state.workspace.syncing = true;
-    state.workspace.infoVersion++;
-    state.workspace.gitVersion++;
-    ui["workspace-settings-feedback"].textContent = "更新路径同步…";
-    try {
-      const info = await api("/workspace/sync", {
-        method: "PUT", body: { agent_to_user: agentToUser, user_to_agent: userToAgent },
-      });
-      if (view !== state.viewVersion) return;
-      state.workspace.info = info;
-      renderWorkspaceSettings();
-      ui["workspace-settings-feedback"].textContent = "路径同步设置已更新";
-      await refreshWorkspace();
-    } catch (error) {
-      if (view !== state.viewVersion) return;
-      renderWorkspaceSettings();
-      ui["workspace-settings-feedback"].textContent = error.message;
-    } finally {
-      if (view === state.viewVersion) { state.workspace.syncing = false; updateWorkspaceControls(); }
-    }
+  function updateSendButton() {
+    const input = ui["message-input"];
+    const uploading = state.draftFiles.some(file => file.status !== "ready");
+    ui["send-button"].disabled = input.disabled || uploading || (!input.value.trim() && !state.draftFiles.length);
   }
 
   let stopPending = false;
@@ -307,17 +71,17 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     const inputDisabled = disabled || state.recoveryBlocked;
     if (inputDisabled) { picker.close(); toolPreload.close(); }
     questions.controls();
-    for (const id of ["message-input", "attach-button", "model-button", "preload-button"]) ui[id].disabled = inputDisabled;
+    for (const id of ["message-input", "attach-button", "model-button", "preload-button", "preload-recent"]) ui[id].disabled = inputDisabled;
     ui["new-session"].disabled = disabled;
+    ui["session-archived"].disabled = !state.ready;
     for (const button of ui["session-list"].querySelectorAll("button")) button.disabled = !state.ready;
-    const uploading = state.draftFiles.some(file => file.status !== "ready");
-    ui["send-button"].disabled = inputDisabled || uploading || (!ui["message-input"].value.trim() && !state.draftFiles.length);
-    ui["session-prev"].disabled = disabled || state.listing || !(state.sessionPage?.page > 1);
-    ui["session-next"].disabled = disabled || state.listing || !state.sessionPage?.has_next;
+    updateSendButton();
+    ui["session-prev"].disabled = disabled || state.listingPage > 0 || !(state.sessionPage?.page > 1);
+    ui["session-next"].disabled = disabled || state.listingPage > 0 || !state.sessionPage?.has_next;
     ui["history-more"].disabled = disabled || state.historyLoading;
     ui["stop-button"].disabled = inputDisabled || state.home || stopPending || ["idle", "done", "error", "stopping"].includes(state.statusPhase);
     for (const view of state.messages) messages.updateActionControls(view);
-    updateWorkspaceControls();
+    workspace.updateControls();
   }
 
   function resizeInput() {
@@ -352,7 +116,6 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     state.historyLoading = false;
     ui["history-more"].hidden = true;
     ui.messages.replaceChildren();
-    if (!preserveDraft) ui["message-input"].value = "";
     resizeInput();
     attachments.renderDraftFiles();
     messages.refreshWelcome();
@@ -363,13 +126,12 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     questions.reset();
     state.ready = false;
     sessions.disconnect();
-    refreshWorkspace();
+    workspace.refresh();
     state.statusQuery = null;
     state.listVersion++;
     state.viewVersion++;
-    state.listing = false;
+    state.listingPage = 0;
     state.historyLoading = false;
-    state.workspace.syncing = false;
     state.navigating = false;
     state.mediaToken = "";
     state.http.abort();
@@ -402,8 +164,10 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     if (wasReady && (!snapshot.ready || snapshot.generation !== state.generation)) invalidateConnection();
     const account = snapshot.credentials?.clientID || state.account;
     if (account !== state.account) {
+      history.reset();
       clearConversation();
       state.account = account;
+      toolPreload.setAccount(account);
       state.sessionID = "";
       state.recoveryBlocked = false;
       state.sessionPage = null;
@@ -443,8 +207,6 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
         view.attachments.push(file);
       }
       state.inputs.set(id, view);
-      messages.refreshWelcome();
-      if (state.followBottom) messages.scrollBottom();
     }
     return id;
   }
@@ -458,7 +220,8 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
       if (!created) return;
     }
     if (!sendPayload(toolPreload.withText(text), state.draftFiles)) return;
-    toolPreload.clear();
+    history.endWalk();
+    toolPreload.sent();
     state.draftFiles = [];
     ui["message-input"].value = "";
     resizeInput();
@@ -512,7 +275,7 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
           messages.showToolCall(message.event.tool_call_id, message.event.tool_call);
         } else if (message.event?.type === "tool_result") {
           messages.showToolResult(message.event.tool_call_id, message.event.tool_result);
-          refreshWorkspace();
+          workspace.refresh();
         } else messages.handleStream(message);
         break;
       case "command_result": {
@@ -590,35 +353,6 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     }
   }
 
-  ui["workspace-changes-tab"].addEventListener("click", () => setWorkspaceContentTab("changes"));
-  ui["workspace-directory-tab"].addEventListener("click", () => setWorkspaceContentTab("directory"));
-  ui["workspace-browse"].addEventListener("click", async () => {
-    setWorkspaceContentTab("directory");
-    await browseDirectories(state.workspace.info?.user_path || "");
-  });
-  ui["directory-up"].addEventListener("click", () => {
-    if (state.workspace.directory?.parent) browseDirectories(state.workspace.directory.parent);
-  });
-  ui["set-user-workspace"].addEventListener("click", chooseUserWorkspace);
-  ui["agent-to-user"].addEventListener("change", updateWorkspaceSync);
-  ui["user-to-agent"].addEventListener("change", updateWorkspaceSync);
-  ui["workspace-refresh"].addEventListener("click", refreshGit);
-  ui["git-agent-side"].addEventListener("click", () => {
-    state.workspace.side = "agent";
-    ui["git-agent-side"].classList.add("selected");
-    ui["git-agent-side"].setAttribute("aria-pressed", "true");
-    ui["git-user-side"].classList.remove("selected");
-    ui["git-user-side"].setAttribute("aria-pressed", "false");
-    refreshGit();
-  });
-  ui["git-user-side"].addEventListener("click", () => {
-    state.workspace.side = "user";
-    ui["git-user-side"].classList.add("selected");
-    ui["git-user-side"].setAttribute("aria-pressed", "true");
-    ui["git-agent-side"].classList.remove("selected");
-    ui["git-agent-side"].setAttribute("aria-pressed", "false");
-    refreshGit();
-  });
   ui["session-toggle"].addEventListener("click", () => sessions.toggleSessions(!ui.workspace.classList.contains("sessions-open")));
   ui["session-backdrop"].addEventListener("click", () => sessions.toggleSessions(false));
   ui["new-session"].addEventListener("click", () => {
@@ -633,24 +367,25 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     form.hidden = !form.hidden;
     ui["session-search-toggle"].setAttribute("aria-expanded", String(!form.hidden));
     if (!form.hidden) ui["session-search"].focus();
-    else if (state.sessionQuery) { state.sessionQuery = ""; ui["session-search"].value = ""; sessions.refreshSessions(); }
+    else if (state.sessionQuery) { ui["session-search"].value = ""; sessions.searchSessions(""); }
   });
   ui["session-search-form"].addEventListener("submit", event => {
-    event.preventDefault(); state.sessionQuery = ui["session-search"].value.trim(); sessions.refreshSessions();
+    event.preventDefault(); sessions.searchSessions(ui["session-search"].value.trim());
   });
   ui["session-search"].addEventListener("search", () => {
-    if (!ui["session-search"].value) { state.sessionQuery = ""; sessions.refreshSessions(); }
+    if (!ui["session-search"].value) sessions.searchSessions("");
   });
   ui["session-prev"].addEventListener("click", () => sessions.refreshSessions(state.sessionPage.page - 1));
   ui["session-next"].addEventListener("click", () => sessions.refreshSessions(state.sessionPage.page + 1));
   ui["history-more"].addEventListener("click", sessions.loadHistory);
   ui["composer-form"].addEventListener("submit", event => { event.preventDefault(); submitInput(); });
-  ui["message-input"].addEventListener("input", () => { completion.hideCompletion(); resizeInput(); updateControls(); });
+  ui["message-input"].addEventListener("input", () => { history.endWalk(); completion.hideCompletion(); resizeInput(); updateSendButton(); });
   ui["message-input"].addEventListener("click", completion.hideCompletion);
   ui["message-input"].addEventListener("keydown", event => {
     if (event.isComposing) return;
-    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); completion.completeInput(event.shiftKey ? -1 : 1); }
+    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); history.endWalk(); completion.completeInput(event.shiftKey ? -1 : 1); }
     else if (state.completion && ["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); completion.completeInput(event.key === "ArrowDown" ? 1 : -1); }
+    else if (event.key === "ArrowUp" || event.key === "ArrowDown") history.arrow(event);
     else if (event.key === "Escape") completion.hideCompletion();
     else if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -716,8 +451,8 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     finally { stopPending = false; updateControls(); }
   });
   matchMedia("(max-width: 760px)").addEventListener("change", () => sessions.toggleSessions(false));
-  document.addEventListener("keydown", event => { if (event.key === "Escape") sessions.toggleSessions(false); });
-  setInterval(status.updateRuntime, 1000);
+  document.addEventListener("keydown", event => { if (event.key === "Escape" && !ui["session-list"].querySelector(":popover-open")) sessions.toggleSessions(false); });
+  setInterval(status.updateElapsed, 1000);
   window.addEventListener("pagehide", () => {
     state.http.abort();
     completion.clearCompletions();
@@ -726,9 +461,10 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
 
   return {
     closeSessions() { sessions.toggleSessions(false); },
-    setConnection, handleMessage, refreshWorkspace,
+    setConnection, handleMessage, refreshWorkspace: workspace.refresh,
     setPageTitle: status.updateTitle,
     show() {
+      ui["raw-toggle"].hidden = false;
       ui["chat-page"].hidden = false;
       state.visible = true;
       resizeInput();
@@ -743,12 +479,15 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
       picker.close();
       toolPreload.close();
       completion.hideCompletion();
+      ui["raw-toggle"].hidden = true;
       ui["chat-page"].hidden = true;
     },
     reset() {
       invalidateConnection();
+      history.reset();
       clearConversation();
       state.account = "";
+      toolPreload.setAccount("");
       state.sessionID = "";
       state.recoveryBlocked = false;
       state.sessionPage = null;

@@ -26,6 +26,7 @@ export function reduceStream(current, event) {
 
 
 export function createMessages({ ui, state, renderStatusCard, refreshStatus, updateRuntime, runAction, notify, clipboard, mermaid }) {
+  let raw = false;
   const dirty = new Set();
   let renderFrame = 0;
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -33,6 +34,8 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
 
   const scroll = ui["chat-scroll"];
   let jumpFrame = 0;
+  let lastTop = 0;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   function setFollowing(follow) {
     state.followBottom = follow;
@@ -40,10 +43,12 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   }
 
   function syncFollowing() {
-    if (state.visible && !jumpFrame) {
-      // scrollTop 可以有小数，其他两个高度是整数。
-      setFollowing(scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop <= 24);
-    }
+    if (!state.visible) return;
+    const top = scroll.scrollTop;
+    const movingUp = top < lastTop;
+    lastTop = top;
+    if (movingUp && state.followBottom) cancelJump();
+    if (!jumpFrame) setFollowing(scroll.scrollHeight - scroll.clientHeight - top <= (movingUp ? 1 : 24));
   }
 
   function cancelJump() {
@@ -55,6 +60,28 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     cancelJump();
     setFollowing(true);
     if (state.visible) scroll.scrollTop = scroll.scrollHeight;
+  }
+
+  function followContent() {
+    if (!state.visible || !state.followBottom || jumpFrame) return;
+    let previous = performance.now();
+    // 流式换行只改变底部的位置，不重启动画。
+    function step(now) {
+      const bottom = scroll.scrollHeight - scroll.clientHeight;
+      const top = scroll.scrollTop;
+      const gap = bottom - top;
+      if (gap <= 1 || reducedMotion.matches) {
+        scroll.scrollTop = bottom;
+        jumpFrame = 0;
+      } else {
+        const fraction = 1 - Math.exp(-(now - previous) / 70);
+        scroll.scrollTop = top + Math.max(1, gap * fraction);
+        previous = now;
+        jumpFrame = requestAnimationFrame(step);
+      }
+      lastTop = scroll.scrollTop;
+    }
+    jumpFrame = requestAnimationFrame(step);
   }
 
   function jumpTo(edge) {
@@ -84,6 +111,24 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   scroll.addEventListener("pointerdown", cancelJump);
   scroll.addEventListener("touchstart", cancelJump, { passive: true });
 
+  ui["raw-toggle"].addEventListener("click", () => {
+    const top = scroll.getBoundingClientRect().top + scroll.clientTop;
+    const anchor = state.followBottom ? null : state.messages.find(({ node }) => node.getBoundingClientRect().bottom > top)?.node;
+    const before = anchor?.getBoundingClientRect();
+
+    raw = !raw;
+    ui["raw-toggle"].setAttribute("aria-pressed", String(raw));
+    for (const view of state.messages) renderMessage(view, true);
+    if (state.followBottom) scrollBottom();
+    else if (anchor) {
+      cancelJump();
+      const after = anchor.getBoundingClientRect();
+      // 视口在长消息内时按比例还原进度；消息头尚在下方时保留它的像素偏移。
+      const offset = top - before.top;
+      scroll.scrollTop += after.top - top + (offset > 0 ? offset / before.height * after.height : offset);
+    }
+  });
+
   function refreshWelcome() {
     ui.welcome.hidden = !state.home || ui.messages.childElementCount > 0;
   }
@@ -92,12 +137,11 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     dirty.add(view);
     if (renderFrame) return;
     renderFrame = requestAnimationFrame(() => {
-      const follow = state.followBottom;
       for (const item of dirty) if (item.node.isConnected) renderMessage(item);
       dirty.clear();
       renderFrame = 0;
       refreshWelcome();
-      if (follow) scrollBottom();
+      followContent();
     });
   }
 
@@ -147,7 +191,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
           const code = element("code", "", block.content.content);
           rendered.append(code);
           const language = block.content.language;
-          if (language && hljs.getLanguage(language)) {
+          if (!raw && language && hljs.getLanguage(language)) {
             code.classList.add(`language-${language}`);
             hljs.highlightElement(code);
           }
@@ -159,7 +203,8 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
         }
         case "diff": {
           const rendered = element("div", "detail-diff");
-          renderDiff(rendered, block.content ?? "");
+          if (raw) rendered.append(element("pre", "", block.content ?? ""));
+          else renderDiff(rendered, block.content ?? "");
           target.append(rendered);
           break;
         }
@@ -170,7 +215,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   }
   function appendToolText(target, text, toolName) {
     text = String(text ?? "");
-    if (toolName === "edit_file") {
+    if (!raw && toolName === "edit_file") {
       const marker = "\ndiff:\n";
       const index = text.lastIndexOf(marker);
       if (index >= 0) {
@@ -204,6 +249,10 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   function renderMarkdown(target, text, settled = true) {
     // innerHTML 会丢弃旧节点，先释放目标区域内图的观察器。
     mermaid.clear(target);
+    if (raw) {
+      target.replaceChildren(element("div", "raw-text", text));
+      return;
+    }
     target.innerHTML = DOMPurify.sanitize(marked.parse(text), {
       USE_PROFILES: { html: true },
       FORBID_TAGS: ["img", "video", "audio", "style", "form", "input", "button"],
@@ -234,7 +283,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
       const copy = iconButton("copy", "复制代码", () => clipboard.copy(code.textContent, copy, "代码已复制"));
       const languageClass = [...code.classList].find(name => name.startsWith("language-"));
       const language = languageClass?.slice("language-".length);
-      if (language && hljs.getLanguage(language)) hljs.highlightElement(code);
+      if (settled && language && hljs.getLanguage(language)) hljs.highlightElement(code);
       copy.classList.add("code-copy");
       block.append(copy);
     }
@@ -244,8 +293,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     return ({ pending: "执行中", completed: "已完成", interrupted: "已中断" })[status] || "";
   }
 
-  function newMessage(role, data = {}, createdAt = new Date().toISOString()) {
-    const follow = state.followBottom;
+  function createMessage(role, data = {}, createdAt = new Date().toISOString()) {
     const node = element("article", `message ${role}`);
     const header = element("div", "message-header");
     if (role === "assistant") {
@@ -311,15 +359,20 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
       if (toolCalls) node.append(header, reasoning, toolCalls, sourceContent, body, files, actions, status);
       else node.append(header, reasoning, body, files, actions, status);
     }
-    state.messages.push(view);
-    ui.messages.append(node);
-    renderMessage(view);
-    refreshWelcome();
-    if (follow) scrollBottom();
     return view;
   }
 
-  function renderMessage(view) {
+  function newMessage(role, data, createdAt) {
+    const view = createMessage(role, data, createdAt);
+    state.messages.push(view);
+    ui.messages.append(view.node);
+    renderMessage(view);
+    refreshWelcome();
+    followContent();
+    return view;
+  }
+
+  function renderMessage(view, force = false) {
     const data = view.data;
     // 先定可见性：隐藏元素量到 0 宽，mermaid 会直接跳过排版。
     view.body.hidden = !(data.text || data.blocks?.length || (view.role === "tool" && data.segments?.length));
@@ -332,13 +385,16 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
       view.toolArguments.hidden = data.toolArguments === undefined;
     }
     if (view.role === "tool" && data.segments) {
-      if (view.renderedSegments !== data.segments) {
+      if (force || view.renderedSegments !== data.segments) {
         view.body.replaceChildren();
         renderToolSegments(view.body, data.segments, data.text, data.toolName);
         view.renderedSegments = data.segments;
       }
-    } else if (view.renderedText !== data.text || view.renderedBlocks !== data.blocks || view.renderedSettled !== !!data.committed) {
-      if (data.statusData) view.body.replaceChildren(renderStatusCard(data.statusData));
+    } else if (force || view.renderedText !== data.text || view.renderedBlocks !== data.blocks || view.renderedSettled !== !!data.committed) {
+      if (data.statusData) {
+        mermaid.clear(view.body);
+        view.body.replaceChildren(renderStatusCard(data.statusData));
+      }
       else if (view.role === "assistant" && data.blocks?.length) renderConfirmationDetails(view.body, data.blocks);
       else if (view.role === "assistant") renderMarkdown(view.body, data.text, !!data.committed);
       else view.body.textContent = data.text;
@@ -459,10 +515,11 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
 
   function handleStream(message) {
     const type = message.event.type;
+    const previousPhase = state.streamPhase;
     if (type === "reasoning_delta") state.streamPhase = "思考中";
     else if (["text_delta", "reasoning_done"].includes(type)) state.streamPhase = "生成中";
     else if (["finish", "send", "reset"].includes(type)) state.streamPhase = "";
-    updateRuntime();
+    if (state.streamPhase !== previousPhase) updateRuntime();
     const key = message.stream_id;
     const existing = state.streams.get(key);
     const data = reduceStream(existing?.data, message.event);
@@ -488,5 +545,5 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     if (message.event.actions?.length) refreshStatus();
   }
 
-  return { jumpTo, cancelJump, isJumping: () => !!jumpFrame, scrollBottom, refreshWelcome, scheduleRender, renderMarkdown, renderConfirmationDetails, newMessage, renderMessage, updateActionControls, renderActions, showCommandResult, showToolCall, showToolResult, handleStream, clearRenderQueue() { dirty.clear(); } };
+  return { jumpTo, cancelJump, isJumping: () => !!jumpFrame, scrollBottom, followContent, refreshWelcome, scheduleRender, renderMarkdown, renderConfirmationDetails, createMessage, newMessage, renderMessage, updateActionControls, renderActions, showCommandResult, showToolCall, showToolResult, handleStream, clearRenderQueue() { dirty.clear(); } };
 }

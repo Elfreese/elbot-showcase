@@ -76,6 +76,16 @@ export function createStatus({ ui, state, api, renderMarkdown, notify, updateCon
     document.title = `${title} · ElBot`;
   }
 
+  function updateElapsed() {
+    const snapshot = state.home ? null : state.snapshot;
+    const startTime = Date.parse(snapshot?.TurnStartedAt || "");
+    const finishTime = Date.parse(snapshot?.FinishedAt || "");
+    if (startTime > 0) {
+      const seconds = Math.max(0, Math.floor(((finishTime > 0 ? finishTime : Date.now()) - startTime) / 1000));
+      ui.elapsed.textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+    } else ui.elapsed.textContent = "";
+  }
+
   function updateRuntime() {
     const snapshot = state.home ? null : state.snapshot;
     const phase = state.home ? "idle" : state.statusPhase;
@@ -86,12 +96,7 @@ export function createStatus({ ui, state, api, renderMarkdown, notify, updateCon
     ui["phase-label"].title = snapshot?.Error || "";
     ui["phase-dot"].className = `status-dot ${state.ready ? (busy ? "busy" : displayPhase === "error" ? "error" : "online") : ""}`;
     ui["tool-label"].textContent = displayPhase === "tool" ? snapshot?.ToolName || "" : "";
-    const startTime = Date.parse(snapshot?.TurnStartedAt || "");
-    const finishTime = Date.parse(snapshot?.FinishedAt || "");
-    if (startTime > 0) {
-      const seconds = Math.max(0, Math.floor(((finishTime > 0 ? finishTime : Date.now()) - startTime) / 1000));
-      ui.elapsed.textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-    } else ui.elapsed.textContent = "";
+    updateElapsed();
     const context = state.home ? null : state.contextUsage;
     updateTitle();
     const contextText = context ? `上下文 ${context.percent.toFixed(1)}%` : "上下文 —";
@@ -139,5 +144,5 @@ export function createStatus({ ui, state, api, renderMarkdown, notify, updateCon
     }
   }
 
-  return { usagePercentages, renderStatusCard, updateRuntime, applyStatus, refreshStatus, updateTitle };
+  return { usagePercentages, renderStatusCard, updateRuntime, updateElapsed, applyStatus, refreshStatus, updateTitle };
 }

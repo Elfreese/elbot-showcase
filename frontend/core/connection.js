@@ -5,7 +5,6 @@ export function createConnection({ onMessage, onStateChange, onAuthenticated, on
   let retry = null;
   let timeout = null;
   let attempt = 0;
-  let closing = false;
 
   function publish(label) { onStateChange({ ...state, label }); }
 
@@ -18,11 +17,9 @@ export function createConnection({ onMessage, onStateChange, onAuthenticated, on
 
   function connect(credentials) {
     clearTimeout(retry);
-    clearTimeout(timeout);
     const generation = ++state.generation;
     socket?.close();
     clearConnection();
-    closing = false;
     state.credentials = credentials;
     publish(attempt ? "重连中" : "连接中");
     const address = new URL("/cli/v1/ws", location.href);
@@ -30,7 +27,6 @@ export function createConnection({ onMessage, onStateChange, onAuthenticated, on
     const current = new WebSocket(address);
     socket = current;
     let authenticated = false;
-    let rejected = false;
     timeout = setTimeout(() => current.close(), 12000);
     current.addEventListener("open", () => {
       if (generation !== state.generation) return;
@@ -49,7 +45,6 @@ export function createConnection({ onMessage, onStateChange, onAuthenticated, on
         publish("已连接");
         onAuthenticated(credentials);
       } else if (!authenticated && message.type === "error") {
-        rejected = true;
         state.credentials = null;
         clearConnection();
         publish("认证失败");
@@ -60,14 +55,13 @@ export function createConnection({ onMessage, onStateChange, onAuthenticated, on
     current.addEventListener("close", () => {
       if (generation !== state.generation) return;
       clearConnection();
-      if (closing || rejected || !state.credentials) { publish("未连接"); return; }
+      if (!state.credentials) { publish("未连接"); return; }
       publish("重连中");
       retry = setTimeout(() => connect(credentials), Math.min(1000 * 2 ** attempt++, 10000));
     });
   }
 
   function disconnect() {
-    closing = true;
     clearTimeout(retry);
     state.generation++;
     state.credentials = null;

@@ -68,15 +68,24 @@ export function setField(values, path, value) {
 
 export function createConfigurationEditor({ api }) {
   const documents = new Map();
+  const pending = new Map();
   let generation = 0;
 
   async function load(entry, force = false) {
-    const version = generation;
+    if (pending.has(entry.path)) return pending.get(entry.path);
     if (!force && documents.has(entry.path)) {
       const existing = documents.get(entry.path);
       existing.entry = entry;
       return existing;
     }
+    const version = generation;
+    const request = read(entry, version);
+    pending.set(entry.path, request);
+    try { return await request; }
+    finally { if (generation === version) pending.delete(entry.path); }
+  }
+
+  async function read(entry, version) {
     let result = { content: "", revision: "" };
     if (entry.exists) {
       result = await api(`/files/content?${new URLSearchParams({ root: "config", path: entry.path, offset: 0, limit: 0 })}`);
@@ -106,7 +115,9 @@ export function createConfigurationEditor({ api }) {
     } finally { document.saving = false; }
   }
 
-  return { load, save, reset() { generation++; documents.clear(); }, isDirty: () => [...documents.values()].some(document => document.draft !== document.source || document.providerState?.changed) };
+  function dirty(doc) { return !!doc && (doc.draft !== doc.source || !!doc.providerState?.changed); }
+  function isDirty(path) { return path === undefined ? [...documents.values()].some(dirty) : dirty(documents.get(path)); }
+  return { load, save, isDirty, reset() { generation++; pending.clear(); documents.clear(); } };
 }
 
 export function createPayloadDraft(value = {}) {
