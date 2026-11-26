@@ -1,0 +1,5 @@
+@charset "UTF-8";
+@import url("styles/base.css");
+@import url("styles/chat.css");
+@import url("styles/logs.css");
+@import url("styles/settings.css");

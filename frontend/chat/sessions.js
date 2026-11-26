@@ -82,8 +82,14 @@ export function createSessions({ ui, state, api, clearConversation, switchDraft,
       if (signal.aborted) return;
       if (action === "rename" && row.id === state.sessionID) ui["conversation-heading"].textContent = result.session?.title ?? body.title;
       if ((action === "delete" || action === "archive") && row.id === state.sessionID && !state.navigating) {
-        const next = result.current_session_id;
-        await changeSession(next && next !== row.id ? next : "", true);
+        let next;
+        try {
+          ({ current_session_id: next } = await api("/sessions?page=1&page_size=1", { signal }));
+        } catch (error) {
+          if (!signal.aborted) notify("WARN", `操作已完成，当前会话读取失败：${error.message}`);
+        }
+        if (!signal.aborted && row.id === state.sessionID && !state.navigating)
+          await changeSession(next && next !== row.id ? next : "", true);
       } else await refreshSessions();
     } catch (error) { if (!signal.aborted) notify("ERROR", error.message); }
     finally { if (!signal.aborted) list.inert = false; }

@@ -86,13 +86,16 @@ export function createConfigurationEditor({ api }) {
   }
 
   async function read(entry, version) {
-    let result = { content: "", revision: "" };
+    let source = "", revision = "";
     if (entry.exists) {
-      result = await api(`/files/content?${new URLSearchParams({ root: "config", path: entry.path, offset: 0, limit: 0 })}`);
+      const result = await api(`/files/content?${new URLSearchParams({ root: "config", path: entry.path, offset: 0, limit: 0 })}`);
       if (result.truncated || result.offset !== 0) throw new Error("文件读取不完整，无法保存");
+      const bytes = Uint8Array.from(atob(result.content_base64), c => c.charCodeAt(0));
+      source = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+      revision = result.revision;
     }
     if (version !== generation) throw new DOMException("文件读取已取消", "AbortError");
-    const document = { entry, source: result.content, draft: result.content, revision: result.revision, create: !entry.exists, saving: false };
+    const document = { entry, source, draft: source, revision, create: !entry.exists, saving: false };
     documents.set(entry.path, document);
     return document;
   }
