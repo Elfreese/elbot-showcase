@@ -1,6 +1,6 @@
 import { element, icon, iconButton } from "../core/dom.js";
 
-export function createSessions({ ui, state, api, clearConversation, switchDraft, updateControls, updateRuntime, refreshStatus, createMessage, newMessage, renderMessage, scrollBottom, notify, closeNotices, onSessionChanged, questions, handleMessage }) {
+export function createSessions({ ui, state, api, clearConversation, switchDraft, updateControls, updateRuntime, refreshStatus, createMessage, newMessage, showToolCall, renderMessage, scrollBottom, notify, closeNotices, onSessionChanged, questions, handleMessage }) {
   const dateFormat = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 
   const viewKey = "elbot.chat.view";
@@ -316,17 +316,19 @@ export function createSessions({ ui, state, api, clearConversation, switchDraft,
 
   let confirmationRead = 0;
   let riskView = null;
-  function showRiskConfirmation(blocks, actions) {
+  function showRiskConfirmation(blocks, actions = []) {
+    const operation = blocks?.find(block => block.kind === "operation")?.content;
+    if (!operation) return false;
     ++confirmationRead; // A live prompt supersedes an older recovery read.
+    const view = showToolCall(operation.tool_call_id, { name: operation.name });
+    if (view.data.toolResultStatus === "completed") return true; // 结果已到，忽略在途的旧确认查询。
     state.awaitingConfirmation = true;
-    const data = { text: "", blocks, actions };
-    if (!riskView || riskView.actionResolved || riskView.actionBusy) {
-      riskView = newMessage("assistant", data);
-    } else {
-      Object.assign(riskView.data, data);
-      renderMessage(riskView);
-    }
+    riskView = view;
+    Object.assign(riskView.data, { text: "", blocks, actions, toolResultStatus: "awaiting_confirmation" });
+    riskView.toolResult.open = true;
+    renderMessage(riskView);
     updateRuntime();
+    return true;
   }
   async function loadConfirmation(show = true) {
     const read = ++confirmationRead;
@@ -394,12 +396,14 @@ export function createSessions({ ui, state, api, clearConversation, switchDraft,
         if (row.role === "assistant" && !row.content && !row.reasoning_content && !row.source_content
           && !row.segments?.some(segment => segment.type === "file" || segment.type === "image")) continue;
         const call = row.role === "tool" ? state.historyToolCalls.get(row.tool_call_id) : null;
+        if (row.role === "tool" && state.toolCalls.has(row.tool_call_id)) continue;
         const view = createMessage(row.role, { text: row.content, sourceContent: row.source_content, reasoning: row.reasoning_content, reasoningDone: true, toolResultStatus: row.tool_result_status, toolName: row.tool_name || call?.name, toolArguments: call?.arguments, toolCallID: row.tool_call_id, segments: row.role === "tool" ? row.segments : null }, row.created_at);
         for (const file of (row.role === "tool" ? [] : (row.segments || []).filter(segment => segment.type === "file" || segment.type === "image"))) {
           const card = element("div", "file-card");
           card.append(element("div", "file-card-main", `${file.name || (file.type === "image" ? "图片" : "文件")} · 历史附件`));
           view.files.append(card);
         }
+        if (row.role === "tool" && row.tool_call_id) state.toolCalls.set(row.tool_call_id, view);
         added.push(view);
         nodes.append(view.node);
       }

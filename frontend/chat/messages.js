@@ -145,7 +145,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     });
   }
 
-  function renderConfirmationDetails(target, detail) {
+  function renderBlocks(target, detail, toolResult = false) {
     target.replaceChildren();
     target.hidden = false;
     if (!Array.isArray(detail) || detail.length === 0) {
@@ -155,9 +155,11 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     for (const block of detail) {
       switch (block.kind) {
         case "text": target.append(element("div", "detail-text", block.content ?? "")); break;
-        case "preview": {
+        case "operation": {
+          if (!block.content.blocks?.length) break;
           const group = element("div");
-          renderConfirmationDetails(group, block.content);
+          if (toolResult) target.append(element("strong", "", `${block.content.name} · 成功 · ${block.content.tool_call_id}`));
+          renderBlocks(group, block.content.blocks);
           target.append(group);
           break;
         }
@@ -203,7 +205,8 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
         }
         case "diff": {
           const rendered = element("div", "detail-diff");
-          if (raw) rendered.append(element("pre", "", block.content ?? ""));
+          if (!block.content) rendered.append(element("span", "", "此次更改未提供 diff"));
+          else if (raw) rendered.append(element("pre", "", block.content));
           else renderDiff(rendered, block.content ?? "");
           target.append(rendered);
           break;
@@ -213,33 +216,11 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
       }
     }
   }
-  function appendToolText(target, text, toolName) {
-    text = String(text ?? "");
-    if (!raw && toolName === "edit_file") {
-      const marker = "\ndiff:\n";
-      const index = text.lastIndexOf(marker);
-      if (index >= 0) {
-        const intro = text.slice(0, index);
-        if (intro) target.append(element("div", "tool-result-text", intro));
-        const diffStart = index + marker.length;
-        const footerMarker = "\nrollback_available: ";
-        const footerIndex = text.lastIndexOf(footerMarker);
-        const diffEnd = footerIndex >= diffStart ? footerIndex : text.length;
-        const diff = element("div", "tool-result-diff");
-        renderDiff(diff, text.slice(diffStart, diffEnd));
-        target.append(diff);
-        if (footerIndex >= diffStart) target.append(element("div", "tool-result-text", text.slice(footerIndex + 1)));
-        return;
-      }
-    }
-    target.append(element("div", "tool-result-text", text));
-  }
-
-  function renderToolSegments(target, segments, fallback, toolName) {
+  function renderToolSegments(target, segments, fallback) {
     const items = segments?.length ? segments : [{ type: "text", text: fallback || "" }];
     for (const segment of items) {
       if (segment.type === "text") {
-        appendToolText(target, segment.text || "", toolName);
+        target.append(element("div", "tool-result-text", segment.text || ""));
       } else {
         const label = [segment.type, segment.name, segment.mime_type].filter(Boolean).join(" · ");
         target.append(element("div", "tool-result-meta", label || JSON.stringify(segment)));
@@ -290,7 +271,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   }
 
   function toolStatusLabel(status) {
-    return ({ pending: "执行中", completed: "已完成", interrupted: "已中断" })[status] || "";
+    return ({ pending: "执行中", awaiting_confirmation: "等待确认", completed: "已完成", interrupted: "已中断" })[status] || "";
   }
 
   function createMessage(role, data = {}, createdAt = new Date().toISOString()) {
@@ -384,10 +365,11 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
       view.toolArguments.textContent = data.toolArguments ?? "";
       view.toolArguments.hidden = data.toolArguments === undefined;
     }
-    if (view.role === "tool" && data.segments) {
-      if (force || view.renderedSegments !== data.segments) {
+    if (view.role === "tool") {
+      if (force || view.renderedSegments !== data.segments || view.renderedBlocks !== data.blocks || view.renderedText !== data.text) {
         view.body.replaceChildren();
-        renderToolSegments(view.body, data.segments, data.text, data.toolName);
+        if (data.blocks?.length) renderBlocks(view.body, data.blocks, data.toolSuccess !== undefined);
+        if (data.segments?.length || data.text) renderToolSegments(view.body, data.segments, data.text);
         view.renderedSegments = data.segments;
       }
     } else if (force || view.renderedText !== data.text || view.renderedBlocks !== data.blocks || view.renderedSettled !== !!data.committed) {
@@ -395,7 +377,7 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
         mermaid.clear(view.body);
         view.body.replaceChildren(renderStatusCard(data.statusData));
       }
-      else if (view.role === "assistant" && data.blocks?.length) renderConfirmationDetails(view.body, data.blocks);
+      else if (view.role === "assistant" && data.blocks?.length) renderBlocks(view.body, data.blocks);
       else if (view.role === "assistant") renderMarkdown(view.body, data.text, !!data.committed);
       else view.body.textContent = data.text;
     }
@@ -485,7 +467,13 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   function showToolCall(toolCallID, call) {
     if (!call) return;
     const existing = state.toolCalls.get(toolCallID);
-    if (existing) return existing;
+    if (existing) {
+      if (call.arguments !== undefined && existing.data.toolArguments === undefined) {
+        Object.assign(existing.data, { toolArguments: call.arguments, toolName: call.name });
+        scheduleRender(existing);
+      }
+      return existing;
+    }
     const view = newMessage("tool", {
       toolCallID, toolName: call.name, toolArguments: call.arguments, toolResultStatus: "pending",
     });
@@ -496,13 +484,15 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
   function showToolResult(toolCallID, result) {
     if (!result) return;
     const existing = state.toolCalls.get(toolCallID);
+    const preview = existing?.data.blocks?.find(b => b.kind === "operation")?.content.blocks?.filter(b => b.kind === "diff");
+    const blocks = result.blocks ?? (!result.success ? preview : undefined);
     const segments = result.segments || [];
     const text = segments.filter(segment => segment.type === "text").map(segment => segment.text || "").join("\n");
     const data = {
-      toolCallID, toolName: existing?.data.toolName ?? result.name,
-      toolArguments: existing?.data.toolArguments ?? result.arguments,
-      toolSuccess: result.success, toolResultStatus: "completed", segments,
-      text: text || (segments.length ? "" : JSON.stringify(result)),
+      toolCallID, toolName: existing?.data.toolName,
+      toolArguments: existing?.data.toolArguments,
+      toolSuccess: result.success, toolResultStatus: "completed", segments, blocks, actions: [],
+      text,
     };
     const view = existing || newMessage("tool", data);
     if (existing) {
@@ -545,5 +535,5 @@ export function createMessages({ ui, state, renderStatusCard, refreshStatus, upd
     if (message.event.actions?.length) refreshStatus();
   }
 
-  return { jumpTo, cancelJump, isJumping: () => !!jumpFrame, scrollBottom, followContent, refreshWelcome, scheduleRender, renderMarkdown, renderConfirmationDetails, createMessage, newMessage, renderMessage, updateActionControls, renderActions, showCommandResult, showToolCall, showToolResult, handleStream, clearRenderQueue() { dirty.clear(); } };
+  return { jumpTo, cancelJump, isJumping: () => !!jumpFrame, scrollBottom, followContent, refreshWelcome, scheduleRender, renderMarkdown, createMessage, newMessage, renderMessage, updateActionControls, renderActions, showCommandResult, showToolCall, showToolResult, handleStream, clearRenderQueue() { dirty.clear(); } };
 }

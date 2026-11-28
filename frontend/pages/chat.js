@@ -48,7 +48,7 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     ui, state, api, clearConversation, updateControls, notify, closeNotices, questions, handleMessage,
     onSessionChanged: workspace.sessionChanged,
     updateRuntime: status.updateRuntime, refreshStatus: status.refreshStatus,
-    createMessage: messages.createMessage, newMessage: messages.newMessage, renderMessage: messages.renderMessage, scrollBottom: messages.scrollBottom,
+    createMessage: messages.createMessage, newMessage: messages.newMessage, showToolCall: messages.showToolCall, renderMessage: messages.renderMessage, scrollBottom: messages.scrollBottom,
   });
   const completion = createCompletion({ ui, state, connection, resizeInput, updateSendButton, notify });
   createMessageNav({ ui, state });
@@ -142,7 +142,7 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
     }
     state.streams.clear();
     for (const view of state.toolCalls.values()) {
-      if (view.data.toolResultStatus !== "pending") continue;
+      if (!["pending", "awaiting_confirmation"].includes(view.data.toolResultStatus)) continue;
       view.data = { ...view.data, error: "连接中断，结果未知" };
       messages.scheduleRender(view);
     }
@@ -259,10 +259,7 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
         break;
       }
       case "chat":
-        if (message.actions?.some(a => a.id === "confirmtool")) {
-          sessions.showRiskConfirmation(message.blocks, message.actions);
-          break;
-        }
+        if (sessions.showRiskConfirmation(message.blocks, message.actions)) break;
         if (message.actions?.some(a => a.id === "append_confirm")) sessions.loadConfirmation(false);
         if (message.blocks?.some(b => b.kind === "question")) { questions.refresh(); break; }
         if (message.text || message.blocks?.length || message.actions?.length) {
@@ -287,7 +284,7 @@ export function createChatPage({ ui, api, connection, notify, showLogin, closeNo
           const { view, detail } = pending;
           state.actionInputs.delete(id);
           view.actionBusy = false;
-          if (detail && success) {
+          if (detail && success && view.data.toolResultStatus !== "completed") {
             view.data = { ...view.data, text: "", blocks: result.blocks, actions: result.actions ?? [] };
             messages.scheduleRender(view);
           } else view.actionResolved = success;
