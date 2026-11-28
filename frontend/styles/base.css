@@ -42,7 +42,7 @@
   --composer-shadow: inset 1px 1px 0 #fffffff2, inset 5px 5px 18px #ffffff40, -3px -3px 12px #ffffff80, 0 8px 24px #2f507b24, 0 2px 6px #2f507b14;
   --scrim: #24395255;
   --wordmark-start: #487db5;
-  --wordmark-end: #487db5;
+  --wordmark-end: #e6edf3;
   --font: "Noto Sans", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
   --mono: "JetBrains Mono", "Cascadia Code", "Noto Sans Mono", ui-monospace, monospace;
   --mono-diff: "CodeNewRoman Nerd Font Mono", "Cascadia Code Nerd Font Mono", "JetBrainsMono Nerd Font Mono", "Noto Sans Mono", ui-monospace, monospace;
